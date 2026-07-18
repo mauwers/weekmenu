@@ -245,7 +245,13 @@ function weekKey(monday){ return monday.toISOString().slice(0,10); }
 function fmtDate(d){ return d.toLocaleDateString('nl-BE',{day:'numeric',month:'short'}); }
 function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
 function uid(){ return Math.random().toString(36).slice(2,9); }
-function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null})), checked:{}}; }
+function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null, type:'thuis', notitie:''})), checked:{}}; }
+const TYPE_INFO = {
+  thuis:       {label:'Thuis gekookt',   icon:'🍳'},
+  afhalen:     {label:'Afhalen',         icon:'🥡'},
+  buitenshuis: {label:'Eten buitenshuis',icon:'🍽️'},
+  restjes:     {label:'Restjes',         icon:'♻️'}
+};
 
 function defaultGerechten(){
   return [
@@ -296,7 +302,15 @@ function subscribeWeek(monday){
   if(unsubWeek) unsubWeek();
   const key = weekKey(monday);
   unsubWeek = onSnapshot(weekDocRef(key), (snap)=>{
-    planningCache[key] = snap.exists() ? snap.data() : emptyWeek();
+    if(snap.exists()){
+      const data = snap.data();
+      data.slots = (data.slots||[]).map(s=>({gerechtId:s.gerechtId||null, persoon:s.persoon||null, type:s.type||'thuis', notitie:s.notitie||''}));
+      while(data.slots.length<7) data.slots.push({gerechtId:null, persoon:null, type:'thuis', notitie:''});
+      data.checked = data.checked || {};
+      planningCache[key] = data;
+    }else{
+      planningCache[key] = emptyWeek();
+    }
     if(weekKey(currentMonday)===key) render();
   }, (err)=>{
     console.error("Sync-fout week:", err);
@@ -388,13 +402,21 @@ function render(){
 function renderDayCard(slot,i){
   const dag = DAGEN[i];
   const datum = fmtDate(addDays(currentMonday,i));
-  const gerecht = gerechten.find(g=>g.id===slot.gerechtId);
+  const type = slot.type || 'thuis';
+  let hoofdregel;
+  if(type === 'thuis'){
+    const gerecht = gerechten.find(g=>g.id===slot.gerechtId);
+    hoofdregel = gerecht ? `<div class="gerecht">${gerecht.naam}</div>` : `<div class="leeg">Nog niks gekozen</div>`;
+  }else{
+    const info = TYPE_INFO[type];
+    hoofdregel = `<div class="gerecht">${info.icon} ${info.label}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>`;
+  }
   return `
     <div class="day-card" id="day-${i}">
       <div>
         <div class="daynaam">${dag}</div>
         <div class="datum">${datum}</div>
-        ${gerecht ? `<div class="gerecht">${gerecht.naam}</div>` : `<div class="leeg">Nog niks gekozen</div>`}
+        ${hoofdregel}
       </div>
       ${slot.persoon ? `<div class="chip">👤 ${slot.persoon}</div>` : ''}
     </div>
@@ -402,7 +424,7 @@ function renderDayCard(slot,i){
 }
 
 function renderReceipt(plan, checked){
-  const gekozen = plan.filter(s=>s.gerechtId);
+  const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
   if(gekozen.length===0){
     return `<div class="receipt">
       <h2>Boodschappenlijst</h2>
@@ -445,6 +467,12 @@ function renderReceipt(plan, checked){
 function openDagKeuze(dayIndex){
   const key = weekKey(currentMonday);
   const slot = planningCache[key].slots[dayIndex];
+  const magKiezen = dayIndex >= 4; // enkel Vrijdag(4)/Zaterdag(5)/Zondag(6)
+  let gekozenType = magKiezen ? (slot.type || 'thuis') : 'thuis';
+  let gekozenId = slot.gerechtId;
+  let gekozenPersoon = slot.persoon;
+  let gekozenNotitie = slot.notitie || '';
+
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
   overlay.innerHTML = `
@@ -452,15 +480,18 @@ function openDagKeuze(dayIndex){
       <button class="close-x">✕</button>
       <h3>${DAGEN[dayIndex]} ${fmtDate(addDays(currentMonday,dayIndex))}</h3>
 
+      ${magKiezen ? `
+      <div class="tab-bar" id="typeTabs">
+        ${Object.entries(TYPE_INFO).map(([t,info])=>`<button data-t="${t}" class="${t===gekozenType?'actief':''}">${info.icon} ${info.label}</button>`).join('')}
+      </div>
+      ` : ''}
+
       <label>Wie kookt of eet mee?</label>
       <div class="persoon-chips" id="persoonChips">
         ${PERSONEN.map(p=>`<div class="persoon-chip ${slot.persoon===p?'actief':''}" data-p="${p}">${p}</div>`).join('')}
       </div>
 
-      <label>Kies een gerecht</label>
-      <input type="text" id="zoekGerecht" placeholder="Zoeken…">
-      <div class="gerecht-lijst" id="gerechtLijst"></div>
-      <button class="link-btn" id="nieuwGerechtBtn">+ Nieuw gerecht toevoegen</button>
+      <div id="typeContent"></div>
 
       <div class="modal-actions">
         <button class="btn btn-ghost" id="wisBtn">Wissen</button>
@@ -470,11 +501,9 @@ function openDagKeuze(dayIndex){
   `;
   document.body.appendChild(overlay);
 
-  let gekozenId = slot.gerechtId;
-  let gekozenPersoon = slot.persoon;
-
   function renderLijst(filter=''){
     const lijst = document.getElementById('gerechtLijst');
+    if(!lijst) return;
     const f = filter.toLowerCase();
     lijst.innerHTML = gerechten
       .filter(g=>g.naam.toLowerCase().includes(f))
@@ -485,8 +514,45 @@ function openDagKeuze(dayIndex){
       el.onclick = ()=>{ gekozenId = el.dataset.id; renderLijst(document.getElementById('zoekGerecht').value); };
     });
   }
-  renderLijst();
-  document.getElementById('zoekGerecht').oninput = (e)=>renderLijst(e.target.value);
+
+  function renderTypeContent(){
+    const el = document.getElementById('typeContent');
+    if(gekozenType === 'thuis'){
+      el.innerHTML = `
+        <label>Kies een gerecht</label>
+        <input type="text" id="zoekGerecht" placeholder="Zoeken…">
+        <div class="gerecht-lijst" id="gerechtLijst"></div>
+        <button class="link-btn" id="nieuwGerechtBtn">+ Nieuw gerecht toevoegen</button>
+      `;
+      renderLijst();
+      document.getElementById('zoekGerecht').oninput = (e)=>renderLijst(e.target.value);
+      document.getElementById('nieuwGerechtBtn').onclick = ()=>{
+        document.body.removeChild(overlay);
+        openNieuwGerecht((nieuwId)=>{
+          planningCache[key].slots[dayIndex] = {gerechtId:nieuwId, persoon:gekozenPersoon, type:'thuis', notitie:''};
+          openDagKeuze(dayIndex);
+        });
+      };
+    }else{
+      const info = TYPE_INFO[gekozenType];
+      const placeholder = gekozenType==='afhalen' ? 'Pizza Hut, Frituur Jan…' : gekozenType==='buitenshuis' ? 'Restaurant naam…' : 'Wat er nog over is…';
+      el.innerHTML = `
+        <label>Notitie (optioneel)</label>
+        <input type="text" id="notitieVeld" placeholder="bv. ${placeholder}" value="${gekozenNotitie}">
+        <div class="receipt-empty" style="color:var(--ink-faint);padding:14px 0 0;text-align:left;">${info.icon} Deze dag telt niet mee in de boodschappenlijst.</div>
+      `;
+      document.getElementById('notitieVeld').oninput = (e)=>{ gekozenNotitie = e.target.value; };
+    }
+  }
+  renderTypeContent();
+
+  overlay.querySelectorAll('#typeTabs button').forEach(btn=>{
+    btn.onclick = ()=>{
+      gekozenType = btn.dataset.t;
+      overlay.querySelectorAll('#typeTabs button').forEach(b=>b.classList.toggle('actief', b.dataset.t===gekozenType));
+      renderTypeContent();
+    };
+  });
 
   overlay.querySelectorAll('.persoon-chip').forEach(el=>{
     el.onclick = ()=>{
@@ -495,21 +561,18 @@ function openDagKeuze(dayIndex){
     };
   });
 
-  document.getElementById('nieuwGerechtBtn').onclick = ()=>{
-    document.body.removeChild(overlay);
-    openNieuwGerecht((nieuwId)=>{
-      planningCache[key].slots[dayIndex] = {gerechtId:nieuwId, persoon:gekozenPersoon};
-      openDagKeuze(dayIndex);
-    });
-  };
-
   document.getElementById('wisBtn').onclick = async ()=>{
-    planningCache[key].slots[dayIndex] = {gerechtId:null, persoon:null};
+    planningCache[key].slots[dayIndex] = {gerechtId:null, persoon:null, type:'thuis', notitie:''};
     await saveWeek(currentMonday);
     document.body.removeChild(overlay);
   };
   document.getElementById('klaarBtn').onclick = async ()=>{
-    planningCache[key].slots[dayIndex] = {gerechtId:gekozenId, persoon:gekozenPersoon};
+    planningCache[key].slots[dayIndex] = {
+      gerechtId: gekozenType==='thuis' ? gekozenId : null,
+      persoon: gekozenPersoon,
+      type: gekozenType,
+      notitie: gekozenType!=='thuis' ? gekozenNotitie : ''
+    };
     await saveWeek(currentMonday);
     document.body.removeChild(overlay);
   };
