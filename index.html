@@ -157,6 +157,21 @@
     display:flex; justify-content:space-between; font-size:0.8rem;
     margin-top:10px; color:#6b6b58;
   }
+  .receipt-add{display:flex; gap:6px; margin:14px 0 10px;}
+  .receipt-add input{
+    flex:1; background:#fff; border:1px solid #d8d0b8; border-radius:6px;
+    padding:8px 10px; font-family:'IBM Plex Mono', monospace; font-size:0.8rem; color:#2A2A22;
+  }
+  .receipt-add button{
+    padding:8px 16px; font-size:0.85rem; white-space:nowrap;
+  }
+  .receipt-extra-label{
+    font-size:0.65rem; color:#8a8a72; letter-spacing:0.6px; margin:12px 0 2px; font-weight:600;
+  }
+  .del-extra{
+    background:none; border:none; color:var(--tomato); cursor:pointer;
+    font-size:0.85rem; padding:0 0 0 8px; line-height:1;
+  }
 
   /* modal */
   .overlay{
@@ -245,7 +260,7 @@ function weekKey(monday){ return monday.toISOString().slice(0,10); }
 function fmtDate(d){ return d.toLocaleDateString('nl-BE',{day:'numeric',month:'short'}); }
 function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
 function uid(){ return Math.random().toString(36).slice(2,9); }
-function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null, type:'thuis', notitie:''})), checked:{}}; }
+function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null, type:'thuis', notitie:''})), checked:{}, extraItems:[]}; }
 const TYPE_INFO = {
   thuis:       {label:'Thuis gekookt',   icon:'🍳'},
   afhalen:     {label:'Afhalen',         icon:'🥡'},
@@ -307,6 +322,7 @@ function subscribeWeek(monday){
       data.slots = (data.slots||[]).map(s=>({gerechtId:s.gerechtId||null, persoon:s.persoon||null, type:s.type||'thuis', notitie:s.notitie||''}));
       while(data.slots.length<7) data.slots.push({gerechtId:null, persoon:null, type:'thuis', notitie:''});
       data.checked = data.checked || {};
+      data.extraItems = data.extraItems || [];
       planningCache[key] = data;
     }else{
       planningCache[key] = emptyWeek();
@@ -368,7 +384,7 @@ function render(){
     </div>
 
     <div class="receipt-wrap">
-      ${renderReceipt(plan, weekData.checked||{})}
+      ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[])}
     </div>
 
     <div class="footnote">Alles wat je hier invult wordt live gedeeld met heel het gezin.</div>
@@ -389,7 +405,8 @@ function render(){
     document.getElementById('day-'+i).onclick = ()=>openDagKeuze(i);
   });
   document.querySelectorAll('.receipt-item[data-key]').forEach(el=>{
-    el.onclick = async ()=>{
+    el.onclick = async (evt)=>{
+      if(evt.target.closest('.del-extra')) return;
       const k = el.dataset.key;
       const wd = planningCache[key];
       wd.checked = wd.checked || {};
@@ -397,6 +414,32 @@ function render(){
       await saveWeek(currentMonday);
     };
   });
+  document.querySelectorAll('.del-extra').forEach(btn=>{
+    btn.onclick = async (evt)=>{
+      evt.stopPropagation();
+      const wd = planningCache[key];
+      wd.extraItems = (wd.extraItems||[]).filter(it=>it.id!==btn.dataset.delExtra);
+      if(wd.checked) delete wd.checked['extra:'+btn.dataset.delExtra];
+      await saveWeek(currentMonday);
+    };
+  });
+  const extraAddBtn = document.getElementById('extraAddBtn');
+  if(extraAddBtn){
+    const doAdd = async ()=>{
+      const input = document.getElementById('extraInput');
+      const naam = input.value.trim();
+      if(!naam) return;
+      const wd = planningCache[key];
+      wd.extraItems = wd.extraItems || [];
+      wd.extraItems.push({id:uid(), naam});
+      input.value = '';
+      await saveWeek(currentMonday);
+    };
+    extraAddBtn.onclick = doAdd;
+    document.getElementById('extraInput').addEventListener('keydown', (e)=>{
+      if(e.key==='Enter') doAdd();
+    });
+  }
 }
 
 function renderDayCard(slot,i){
@@ -423,16 +466,9 @@ function renderDayCard(slot,i){
   `;
 }
 
-function renderReceipt(plan, checked){
+function renderReceipt(plan, checked, extraItems){
+  extraItems = extraItems || [];
   const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
-  if(gekozen.length===0){
-    return `<div class="receipt">
-      <h2>Boodschappenlijst</h2>
-      <div class="receipt-sub">week van ${fmtDate(currentMonday)}</div>
-      <hr>
-      <div class="receipt-empty">Kies eerst gerechten voor de week —<br>de lijst vult zichzelf dan aan.</div>
-    </div>`;
-  }
   const agg = {};
   gekozen.forEach(s=>{
     const g = gerechten.find(x=>x.id===s.gerechtId);
@@ -446,20 +482,40 @@ function renderReceipt(plan, checked){
     });
   });
   const items = Object.entries(agg).sort((a,b)=>a[1].naam.localeCompare(b[1].naam));
+  const totaalAantal = items.length + extraItems.length;
+
+  const gerechtRows = items.map(([k,v])=>{
+    const hoev = v.totaal>0 ? (v.totaal+' '+(v.eenheid||'')).trim() : (v.teksten.join(', ')||'');
+    const isChecked = checked[k];
+    return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${k}">
+      <span class="naam">${isChecked?'✓ ':'• '}${v.naam}</span>
+      <span>${hoev}</span>
+    </div>`;
+  }).join('');
+
+  const extraRows = extraItems.map(item=>{
+    const k = 'extra:'+item.id;
+    const isChecked = checked[k];
+    return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${k}">
+      <span class="naam">${isChecked?'✓ ':'• '}${item.naam}</span>
+      <span><button class="del-extra" data-del-extra="${item.id}">✕</button></span>
+    </div>`;
+  }).join('');
+
   return `<div class="receipt">
     <h2>Boodschappenlijst</h2>
-    <div class="receipt-sub">week van ${fmtDate(currentMonday)} · ${gekozen.length} maaltijden</div>
+    <div class="receipt-sub">week van ${fmtDate(currentMonday)}${gekozen.length ? ' · '+gekozen.length+' maaltijden' : ''}</div>
     <hr>
-    ${items.map(([k,v])=>{
-      const hoev = v.totaal>0 ? (v.totaal+' '+(v.eenheid||'')).trim() : (v.teksten.join(', ')||'');
-      const isChecked = checked[k];
-      return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${k}">
-        <span class="naam">${isChecked?'✓ ':'• '}${v.naam}</span>
-        <span>${hoev}</span>
-      </div>`;
-    }).join('')}
+    ${totaalAantal===0
+      ? '<div class="receipt-empty">Kies gerechten voor de week, of voeg hieronder een extra item toe.</div>'
+      : gerechtRows + (extraItems.length ? `<div class="receipt-extra-label">EXTRA</div>${extraRows}` : '')
+    }
+    <div class="receipt-add">
+      <input type="text" id="extraInput" placeholder="Extra item… (bv. hondenvoer)">
+      <button class="btn btn-primary" id="extraAddBtn">+ Toevoegen</button>
+    </div>
     <hr>
-    <div class="receipt-total"><span>${items.length} artikelen</span><span>tik af = check</span></div>
+    <div class="receipt-total"><span>${totaalAantal} artikelen</span><span>tik af = check</span></div>
   </div>`;
 }
 
