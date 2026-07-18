@@ -1032,6 +1032,7 @@ function openNieuwGerecht(onSaved, bestaandGerecht){
 // ---------- Gerechten beheren ----------
 // ---------- Vaste artikelen ----------
 const BONNETJE_SUGGESTIES = [
+  // Uit geüploade bonnetjes
   ['Feta', 'Zuivel & Eieren'],
   ['Vers pizzadeeg', 'Brood & Bakkerij'],
   ['Wraps volkoren', 'Brood & Bakkerij'],
@@ -1041,7 +1042,50 @@ const BONNETJE_SUGGESTIES = [
   ['Alpro sojadrink banaan', 'Dranken'],
   ['Appelen', 'Groenten & Fruit'],
   ['Bereid gehakt rund+varken', 'Vlees & Vis'],
-  ['Filet americain', 'Vlees & Vis']
+  ['Filet americain', 'Vlees & Vis'],
+  // Algemene huishoudelijke basisproducten
+  ['Sinaasappelen', 'Groenten & Fruit'],
+  ['Citroenen', 'Groenten & Fruit'],
+  ['Wortelen', 'Groenten & Fruit'],
+  ['Prei', 'Groenten & Fruit'],
+  ['Broccoli', 'Groenten & Fruit'],
+  ['Champignons', 'Groenten & Fruit'],
+  ['Knoflook', 'Groenten & Fruit'],
+  ['Aardappelen', 'Groenten & Fruit'],
+  ['Peren', 'Groenten & Fruit'],
+  ['IJsbergsla', 'Groenten & Fruit'],
+  ['Kipfilet', 'Vlees & Vis'],
+  ['Gehakt gemengd', 'Vlees & Vis'],
+  ['Hesp', 'Vlees & Vis'],
+  ['Eieren', 'Zuivel & Eieren'],
+  ['Boter', 'Zuivel & Eieren'],
+  ['Geraspte kaas', 'Zuivel & Eieren'],
+  ['Slagroom', 'Zuivel & Eieren'],
+  ['Sneden brood', 'Brood & Bakkerij'],
+  ['Croissants', 'Brood & Bakkerij'],
+  ['Rijst', 'Droge voeding & Conserven'],
+  ['Bloem', 'Droge voeding & Conserven'],
+  ['Suiker', 'Droge voeding & Conserven'],
+  ['Olijfolie', 'Droge voeding & Conserven'],
+  ['Ketchup', 'Droge voeding & Conserven'],
+  ['Mayonaise', 'Droge voeding & Conserven'],
+  ['Mosterd', 'Droge voeding & Conserven'],
+  ['Bouillonblokjes', 'Droge voeding & Conserven'],
+  ['Pindakaas', 'Droge voeding & Conserven'],
+  ['Confituur', 'Droge voeding & Conserven'],
+  ['Diepvriesgroenten', 'Diepvries'],
+  ['Frieten', 'Diepvries'],
+  ['Vissticks', 'Diepvries'],
+  ['Water plat', 'Dranken'],
+  ['Water bruis', 'Dranken'],
+  ['Appelsap', 'Dranken'],
+  ['Vaatwastabletten', 'Huishouden & Verzorging'],
+  ['Wasmiddel', 'Huishouden & Verzorging'],
+  ['Afwasmiddel', 'Huishouden & Verzorging'],
+  ['Keukenrol', 'Huishouden & Verzorging'],
+  ['Vuilniszakken', 'Huishouden & Verzorging'],
+  ['Tandpasta', 'Huishouden & Verzorging'],
+  ['Douchegel', 'Huishouden & Verzorging']
 ];
 
 function openVasteArtikelen(){
@@ -1059,7 +1103,7 @@ function openVasteArtikelen(){
         <button class="btn btn-primary" id="nieuwVastBtn">+ Toevoegen</button>
       </div>
       <button class="link-btn" id="beheerToggle" style="margin-top:8px;">Bewerken</button>
-      <button class="link-btn" id="importBtn" style="margin-top:4px; display:block;">📥 10 suggesties uit je Colruyt-bonnetje toevoegen</button>
+      <button class="link-btn" id="importBtn" style="margin-top:4px; display:block;">📥 Aanvullende suggesties toevoegen (~50 items)</button>
     </div>
   `;
   document.body.appendChild(overlay);
