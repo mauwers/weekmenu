@@ -207,6 +207,7 @@
   .ing-row{display:flex; gap:8px; margin-bottom:8px;}
   .ing-row input{flex:1;}
   .ing-row input.hoev{flex:0 0 70px;}
+  .ing-row .del-extra{flex:0 0 auto; align-self:center; font-size:1rem;}
   .link-btn{background:none;border:none;color:var(--mustard); cursor:pointer; font-size:0.82rem; padding:4px 0;}
   .close-x{position:absolute; top:14px; right:16px; background:none; border:none; color:var(--ink-soft); font-size:1.3rem; cursor:pointer;}
   .modal{position:relative;}
@@ -802,16 +803,24 @@ function openDagKeuze(dayIndex){
 }
 
 // ---------- Nieuw gerecht modal ----------
-function openNieuwGerecht(onSaved){
+function openNieuwGerecht(onSaved, bestaandGerecht){
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
-  let rijen = [{naam:'',hoeveelheid:'',eenheid:'',categorie:'Overig',categorieTouched:false}];
+  const isBewerken = !!bestaandGerecht;
+  let rijen = isBewerken
+    ? bestaandGerecht.ingredienten.map(ing=>({
+        naam: ing.naam, hoeveelheid: ing.hoeveelheid, eenheid: ing.eenheid,
+        categorie: ing.categorie || guessCategorie(ing.naam), categorieTouched: true
+      }))
+    : [];
+  if(rijen.length===0) rijen.push({naam:'',hoeveelheid:'',eenheid:'',categorie:'Overig',categorieTouched:false});
+
   overlay.innerHTML = `
     <div class="modal">
       <button class="close-x">✕</button>
-      <h3>Nieuw gerecht</h3>
+      <h3>${isBewerken ? 'Gerecht bewerken' : 'Nieuw gerecht'}</h3>
       <label>Naam van het gerecht</label>
-      <input type="text" id="naamGerecht" placeholder="bv. Lasagne">
+      <input type="text" id="naamGerecht" placeholder="bv. Lasagne" value="${isBewerken ? bestaandGerecht.naam.replace(/"/g,'&quot;') : ''}">
       <label>Ingrediënten</label>
       <div id="ingRows"></div>
       <button class="link-btn" id="addIngBtn">+ Ingrediënt toevoegen</button>
@@ -830,6 +839,7 @@ function openNieuwGerecht(onSaved){
         <input type="text" placeholder="ingrediënt" value="${r.naam}" data-i="${i}" data-f="naam">
         <input type="text" class="hoev" placeholder="hoev." value="${r.hoeveelheid}" data-i="${i}" data-f="hoeveelheid">
         <input type="text" class="hoev" placeholder="eenh." value="${r.eenheid}" data-i="${i}" data-f="eenheid">
+        <button class="del-extra" data-verwijder-rij="${i}" title="Ingrediënt verwijderen">✕</button>
       </div>
       <div style="margin:-4px 0 8px;">
         <select data-cat-i="${i}" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink-soft); border-radius:8px; padding:6px 8px; font-family:inherit; font-size:0.78rem;">
@@ -857,6 +867,13 @@ function openNieuwGerecht(onSaved){
         rijen[i].categorieTouched = true;
       };
     });
+    el.querySelectorAll('[data-verwijder-rij]').forEach(btn=>{
+      btn.onclick = ()=>{
+        rijen.splice(Number(btn.dataset.verwijderRij), 1);
+        if(rijen.length===0) rijen.push({naam:'',hoeveelheid:'',eenheid:'',categorie:'Overig',categorieTouched:false});
+        renderRows();
+      };
+    });
   }
   renderRows();
 
@@ -874,19 +891,36 @@ function openNieuwGerecht(onSaved){
       naam:r.naam, hoeveelheid:r.hoeveelheid, eenheid:r.eenheid,
       categorie:r.categorie || guessCategorie(r.naam)
     }));
-    const nieuw = {id:uid(), naam, ingredienten};
     const bewaarBtn = document.getElementById('bewaarBtn');
     bewaarBtn.disabled = true;
     bewaarBtn.textContent = 'Bewaren…';
-    try{
-      gerechten.push(nieuw);
-      await saveGerechten();
-      document.body.removeChild(overlay);
-      onSaved(nieuw.id);
-    }catch(e){
-      gerechten = gerechten.filter(g=>g.id!==nieuw.id);
-      bewaarBtn.disabled = false;
-      bewaarBtn.textContent = 'Bewaren';
+
+    if(isBewerken){
+      const origineel = gerechten.find(g=>g.id===bestaandGerecht.id);
+      const origineleData = origineel ? {...origineel} : null;
+      const idx = gerechten.findIndex(g=>g.id===bestaandGerecht.id);
+      if(idx>-1) gerechten[idx] = {id:bestaandGerecht.id, naam, ingredienten};
+      try{
+        await saveGerechten();
+        document.body.removeChild(overlay);
+        onSaved(bestaandGerecht.id);
+      }catch(e){
+        if(idx>-1 && origineleData) gerechten[idx] = origineleData;
+        bewaarBtn.disabled = false;
+        bewaarBtn.textContent = 'Bewaren';
+      }
+    }else{
+      const nieuw = {id:uid(), naam, ingredienten};
+      try{
+        gerechten.push(nieuw);
+        await saveGerechten();
+        document.body.removeChild(overlay);
+        onSaved(nieuw.id);
+      }catch(e){
+        gerechten = gerechten.filter(g=>g.id!==nieuw.id);
+        bewaarBtn.disabled = false;
+        bewaarBtn.textContent = 'Bewaren';
+      }
     }
   };
 }
@@ -1015,10 +1049,17 @@ function openGerechtenBeheer(){
   function renderBeheer(){
     document.getElementById('beheerLijst').innerHTML = gerechten.map(g=>`
       <div class="gerecht-optie" style="border-bottom:1px solid var(--line);">
-        <span>${g.naam} <span class="ing-count">(${g.ingredienten.length} ingr.)</span></span>
+        <span data-bewerk="${g.id}" style="cursor:pointer;">✏️ ${g.naam} <span class="ing-count">(${g.ingredienten.length} ingr.)</span></span>
         <button class="link-btn" data-del="${g.id}" style="color:var(--tomato);">verwijder</button>
       </div>
     `).join('') || '<div class="receipt-empty" style="color:var(--ink-faint);">Nog geen gerechten.</div>';
+    document.querySelectorAll('[data-bewerk]').forEach(span=>{
+      span.onclick = ()=>{
+        const gerecht = gerechten.find(g=>g.id===span.dataset.bewerk);
+        document.body.removeChild(overlay);
+        openNieuwGerecht(()=>{ openGerechtenBeheer(); }, gerecht);
+      };
+    });
     document.querySelectorAll('[data-del]').forEach(btn=>{
       btn.onclick = async ()=>{
         const verwijderd = gerechten.find(g=>g.id===btn.dataset.del);
