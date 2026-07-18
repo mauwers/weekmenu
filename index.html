@@ -268,6 +268,26 @@ const TYPE_INFO = {
   restjes:     {label:'Restjes',         icon:'♻️'}
 };
 
+const CATEGORIE_KEYWORDS = {
+  'Groenten & Fruit': ['ui','tomaat','tomaten','sla','komkommer','wortel','wortelen','prei','broccoli','courgette','paprika','aardappel','appel','banaan','citroen','limoen','knoflook','champignon','spinazie','avocado','peer','druif','meloen','ananas','bloemkool','spruit','asperge','venkel','rucola','basilicum','peterselie','koriander','gember','radijs','witloof','andijvie'],
+  'Vlees & Vis': ['gehakt','kip','kipfilet','vis','zalm','kabeljauw','worst','spek','ham','steak','biefstuk','varken','rund','gevogelte','garnaal','tonijn','kalkoen','vleeswaren'],
+  'Zuivel & Eieren': ['melk','kaas','yoghurt','boter','room','mozzarella','ei','eieren','parmezaan','crème fraiche','creme fraiche','platte kaas'],
+  'Brood & Bakkerij': ['brood','stokbrood','croissant','pizzadeeg','deeg','baguette','wraps','tortilla','beschuit'],
+  'Droge voeding & Conserven': ['pasta','spaghetti','rijst','bloem','suiker','olie','azijn','tomatensaus','bouillon','kruiden','peper','zout','conserven','blik','linzen','kikkererwten','pesto','honing','muesli','cornflakes','noten','couscous'],
+  'Diepvries': ['diepvries','frites','ijs','diepvriesgroenten','friet'],
+  'Dranken': ['water','sap','frisdrank','wijn','bier','koffie','thee','cola'],
+  'Huishouden & Verzorging': ['wc-papier','toiletpapier','afwasmiddel','wasmiddel','shampoo','tandpasta','zeep','vuilniszak','keukenrol','hondenvoer','kattenbakvulling']
+};
+const CATEGORIEEN = [...Object.keys(CATEGORIE_KEYWORDS), 'Overig'];
+
+function guessCategorie(naam){
+  const n = (naam||'').toLowerCase();
+  for(const [cat, woorden] of Object.entries(CATEGORIE_KEYWORDS)){
+    if(woorden.some(w=>n.includes(w))) return cat;
+  }
+  return 'Overig';
+}
+
 function defaultGerechten(){
   return [
     {id:uid(), naam:"Spaghetti bolognese", ingredienten:[
@@ -431,7 +451,7 @@ function render(){
       if(!naam) return;
       const wd = planningCache[key];
       wd.extraItems = wd.extraItems || [];
-      wd.extraItems.push({id:uid(), naam});
+      wd.extraItems.push({id:uid(), naam, categorie:guessCategorie(naam)});
       input.value = '';
       await saveWeek(currentMonday);
     };
@@ -475,32 +495,47 @@ function renderReceipt(plan, checked, extraItems){
     if(!g) return;
     g.ingredienten.forEach(ing=>{
       const k = (ing.naam.trim().toLowerCase())+'|'+(ing.eenheid||'').trim().toLowerCase();
-      if(!agg[k]) agg[k] = {naam:ing.naam, eenheid:ing.eenheid, totaal:0, teksten:[]};
+      if(!agg[k]) agg[k] = {naam:ing.naam, eenheid:ing.eenheid, totaal:0, teksten:[], categorie: ing.categorie || guessCategorie(ing.naam)};
       const num = parseFloat((ing.hoeveelheid||'').toString().replace(',','.'));
       if(!isNaN(num)) agg[k].totaal += num;
       else agg[k].teksten.push(ing.hoeveelheid);
     });
   });
-  const items = Object.entries(agg).sort((a,b)=>a[1].naam.localeCompare(b[1].naam));
+  const items = Object.entries(agg);
   const totaalAantal = items.length + extraItems.length;
 
-  const gerechtRows = items.map(([k,v])=>{
-    const hoev = v.totaal>0 ? (v.totaal+' '+(v.eenheid||'')).trim() : (v.teksten.join(', ')||'');
-    const isChecked = checked[k];
-    return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${k}">
-      <span class="naam">${isChecked?'✓ ':'• '}${v.naam}</span>
-      <span>${hoev}</span>
-    </div>`;
-  }).join('');
+  // Alles (gerecht-ingrediënten + extra items) samenvoegen tot één lijst van rijen, elk met een categorie
+  const rows = [
+    ...items.map(([k,v])=>({
+      key:k, naam:v.naam, categorie:v.categorie, isExtra:false,
+      rechts: v.totaal>0 ? (v.totaal+' '+(v.eenheid||'')).trim() : (v.teksten.join(', ')||'')
+    })),
+    ...extraItems.map(item=>({
+      key:'extra:'+item.id, naam:item.naam, categorie: item.categorie || guessCategorie(item.naam),
+      isExtra:true, id:item.id
+    }))
+  ];
 
-  const extraRows = extraItems.map(item=>{
-    const k = 'extra:'+item.id;
-    const isChecked = checked[k];
-    return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${k}">
-      <span class="naam">${isChecked?'✓ ':'• '}${item.naam}</span>
-      <span><button class="del-extra" data-del-extra="${item.id}">✕</button></span>
-    </div>`;
-  }).join('');
+  // Groeperen per categorie, in vaste winkelvolgorde (CATEGORIEEN)
+  const groepen = {};
+  rows.forEach(r=>{ (groepen[r.categorie] = groepen[r.categorie] || []).push(r); });
+  Object.values(groepen).forEach(list => list.sort((a,b)=>a.naam.localeCompare(b.naam)));
+
+  const body = CATEGORIEEN
+    .filter(cat => groepen[cat] && groepen[cat].length)
+    .map(cat => {
+      const rijenHtml = groepen[cat].map(r=>{
+        const isChecked = checked[r.key];
+        const rechts = r.isExtra
+          ? `<button class="del-extra" data-del-extra="${r.id}">✕</button>`
+          : (r.rechts || '');
+        return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${r.key}">
+          <span class="naam">${isChecked?'✓ ':'• '}${r.naam}</span>
+          <span>${rechts}</span>
+        </div>`;
+      }).join('');
+      return `<div class="receipt-cat-label">${cat.toUpperCase()}</div>${rijenHtml}`;
+    }).join('');
 
   return `<div class="receipt">
     <h2>Boodschappenlijst</h2>
@@ -508,7 +543,7 @@ function renderReceipt(plan, checked, extraItems){
     <hr>
     ${totaalAantal===0
       ? '<div class="receipt-empty">Kies gerechten voor de week, of voeg hieronder een extra item toe.</div>'
-      : gerechtRows + (extraItems.length ? `<div class="receipt-extra-label">EXTRA</div>${extraRows}` : '')
+      : body
     }
     <div class="receipt-add">
       <input type="text" id="extraInput" placeholder="Extra item… (bv. hondenvoer)">
@@ -639,7 +674,7 @@ function openDagKeuze(dayIndex){
 function openNieuwGerecht(onSaved){
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
-  let rijen = [{naam:'',hoeveelheid:'',eenheid:''}];
+  let rijen = [{naam:'',hoeveelheid:'',eenheid:'',categorie:'Overig',categorieTouched:false}];
   overlay.innerHTML = `
     <div class="modal">
       <button class="close-x">✕</button>
@@ -665,15 +700,37 @@ function openNieuwGerecht(onSaved){
         <input type="text" class="hoev" placeholder="hoev." value="${r.hoeveelheid}" data-i="${i}" data-f="hoeveelheid">
         <input type="text" class="hoev" placeholder="eenh." value="${r.eenheid}" data-i="${i}" data-f="eenheid">
       </div>
+      <div style="margin:-4px 0 8px;">
+        <select data-cat-i="${i}" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink-soft); border-radius:8px; padding:6px 8px; font-family:inherit; font-size:0.78rem;">
+          ${CATEGORIEEN.map(c=>`<option value="${c}" ${c===r.categorie?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
     `).join('');
     el.querySelectorAll('input').forEach(inp=>{
       inp.oninput = ()=>{ rijen[inp.dataset.i][inp.dataset.f] = inp.value; };
+      if(inp.dataset.f === 'naam'){
+        inp.addEventListener('blur', ()=>{
+          const i = inp.dataset.i;
+          if(!rijen[i].categorieTouched){
+            rijen[i].categorie = guessCategorie(rijen[i].naam);
+            const sel = el.querySelector(`select[data-cat-i="${i}"]`);
+            if(sel) sel.value = rijen[i].categorie;
+          }
+        });
+      }
+    });
+    el.querySelectorAll('select[data-cat-i]').forEach(sel=>{
+      sel.onchange = ()=>{
+        const i = sel.dataset.catI;
+        rijen[i].categorie = sel.value;
+        rijen[i].categorieTouched = true;
+      };
     });
   }
   renderRows();
 
   document.getElementById('addIngBtn').onclick = ()=>{
-    rijen.push({naam:'',hoeveelheid:'',eenheid:''});
+    rijen.push({naam:'',hoeveelheid:'',eenheid:'',categorie:'Overig',categorieTouched:false});
     renderRows();
   };
   document.getElementById('annuleerBtn').onclick = ()=>document.body.removeChild(overlay);
@@ -682,7 +739,10 @@ function openNieuwGerecht(onSaved){
   document.getElementById('bewaarBtn').onclick = async ()=>{
     const naam = document.getElementById('naamGerecht').value.trim();
     if(!naam){ alert('Geef het gerecht een naam.'); return; }
-    const ingredienten = rijen.filter(r=>r.naam.trim());
+    const ingredienten = rijen.filter(r=>r.naam.trim()).map(r=>({
+      naam:r.naam, hoeveelheid:r.hoeveelheid, eenheid:r.eenheid,
+      categorie:r.categorie || guessCategorie(r.naam)
+    }));
     const nieuw = {id:uid(), naam, ingredienten};
     const bewaarBtn = document.getElementById('bewaarBtn');
     bewaarBtn.disabled = true;
