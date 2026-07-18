@@ -219,6 +219,36 @@
   .tab-bar button.actief{background:var(--tomato); color:var(--paper); border-color:var(--tomato);}
   .loading{text-align:center; color:var(--ink-faint); padding:30px; font-size:0.85rem;}
   .footnote{text-align:center; color:var(--ink-faint); font-size:0.72rem; margin-top:26px;}
+
+  /* Winkelmodus */
+  .winkel-overlay{
+    position:fixed; inset:0; background:var(--paper); color:#2A2A22;
+    z-index:100; overflow-y:auto;
+  }
+  .winkel-header{
+    position:sticky; top:0; background:var(--paper); z-index:2;
+    padding:16px 20px 12px; border-bottom:1px solid #d8d0b8;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .winkel-header h2{font-family:'Baloo 2', sans-serif; margin:0; font-size:1.15rem;}
+  .winkel-terug{background:none; border:none; color:var(--tomato); font-weight:700; font-size:0.9rem; cursor:pointer; padding:6px 0;}
+  .winkel-progress{font-family:'IBM Plex Mono', monospace; font-size:0.75rem; color:#6b6b58;}
+  .winkel-body{padding:6px 20px 70px; max-width:520px; margin:0 auto;}
+  .winkel-cat{font-family:'Baloo 2', sans-serif; font-weight:700; font-size:0.95rem; color:var(--tomato); margin:24px 0 6px; letter-spacing:0.3px;}
+  .winkel-item{
+    display:flex; align-items:center; gap:14px; padding:14px 2px;
+    border-bottom:1px solid #ece5d0; font-size:1.05rem; cursor:pointer; user-select:none;
+  }
+  .winkel-item .bolletje{
+    width:26px; height:26px; border-radius:50%; border:2px solid #b9af8f;
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    font-size:0.85rem; color:#fff;
+  }
+  .winkel-item.checked .bolletje{background:var(--tomato); border-color:var(--tomato);}
+  .winkel-item.checked{opacity:0.45; text-decoration:line-through;}
+  .winkel-item .naam{flex:1;}
+  .winkel-item .hoev{font-family:'IBM Plex Mono', monospace; font-size:0.85rem; color:#6b6b58;}
+  .winkel-empty{text-align:center; color:#8a8a72; padding:70px 20px; font-size:1rem;}
 </style>
 </head>
 <body>
@@ -247,6 +277,7 @@ let gerechten = [];        // {id, naam, ingredienten:[{naam,hoeveelheid,eenheid
 let planningCache = {};    // weekKey -> { slots:[...x7], checked:{...} }
 let currentMonday = getMonday(new Date());
 let unsubWeek = null;
+let winkelmodusRerender = null;
 let ready = false;
 
 function getMonday(d){
@@ -477,7 +508,10 @@ function subscribeWeek(monday){
     }else{
       planningCache[key] = emptyWeek();
     }
-    if(weekKey(currentMonday)===key) render();
+    if(weekKey(currentMonday)===key){
+      render();
+      if(winkelmodusRerender) winkelmodusRerender();
+    }
   }, (err)=>{
     console.error("Sync-fout week:", err);
     planningCache[key] = planningCache[key] || emptyWeek();
@@ -532,6 +566,7 @@ function render(){
     <div class="row-actions">
       <button class="btn btn-ghost" id="beheerBtn">📖 Gerechten beheren</button>
       <button class="btn btn-ghost" id="vasteBtn">⭐ Vaste artikelen</button>
+      <button class="btn btn-primary" id="winkelBtn">🛒 Ga winkelen</button>
     </div>
 
     <div class="receipt-wrap">
@@ -541,6 +576,7 @@ function render(){
     <div class="footnote">Alles wat je hier invult wordt live gedeeld met heel het gezin.</div>
   `;
 
+  document.getElementById('winkelBtn').onclick = ()=>openWinkelmodus();
   document.getElementById('prevWeek').onclick = ()=>{
     currentMonday = addDays(currentMonday,-7);
     subscribeWeek(currentMonday);
@@ -618,7 +654,7 @@ function renderDayCard(slot,i){
   `;
 }
 
-function renderReceipt(plan, checked, extraItems){
+function getBoodschappenGroepen(plan, extraItems){
   extraItems = extraItems || [];
   const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
   const agg = {};
@@ -634,9 +670,7 @@ function renderReceipt(plan, checked, extraItems){
     });
   });
   const items = Object.entries(agg);
-  const totaalAantal = items.length + extraItems.length;
 
-  // Alles (gerecht-ingrediënten + extra items) samenvoegen tot één lijst van rijen, elk met een categorie
   const rows = [
     ...items.map(([k,v])=>({
       key:k, naam:v.naam, categorie:v.categorie, isExtra:false,
@@ -648,10 +682,15 @@ function renderReceipt(plan, checked, extraItems){
     }))
   ];
 
-  // Groeperen per categorie, in vaste winkelvolgorde (CATEGORIEEN)
   const groepen = {};
   rows.forEach(r=>{ (groepen[r.categorie] = groepen[r.categorie] || []).push(r); });
   Object.values(groepen).forEach(list => list.sort((a,b)=>a.naam.localeCompare(b.naam)));
+
+  return {groepen, totaalAantal: rows.length, gekozenAantal: gekozen.length};
+}
+
+function renderReceipt(plan, checked, extraItems){
+  const {groepen, totaalAantal, gekozenAantal} = getBoodschappenGroepen(plan, extraItems);
 
   const body = CATEGORIEEN
     .filter(cat => groepen[cat] && groepen[cat].length)
@@ -671,7 +710,7 @@ function renderReceipt(plan, checked, extraItems){
 
   return `<div class="receipt">
     <h2>Boodschappenlijst</h2>
-    <div class="receipt-sub">week van ${fmtDate(currentMonday)}${gekozen.length ? ' · '+gekozen.length+' maaltijden' : ''}</div>
+    <div class="receipt-sub">week van ${fmtDate(currentMonday)}${gekozenAantal ? ' · '+gekozenAantal+' maaltijden' : ''}</div>
     <hr>
     ${totaalAantal===0
       ? '<div class="receipt-empty">Kies gerechten voor de week, of voeg hieronder een extra item toe.</div>'
@@ -684,6 +723,71 @@ function renderReceipt(plan, checked, extraItems){
     <hr>
     <div class="receipt-total"><span>${totaalAantal} artikelen</span><span>tik af = check</span></div>
   </div>`;
+}
+
+// ---------- Winkelmodus ----------
+function openWinkelmodus(){
+  const overlay = document.createElement('div');
+  overlay.className = 'winkel-overlay';
+  document.body.appendChild(overlay);
+
+  function renderWinkel(){
+    const key = weekKey(currentMonday);
+    const wd = planningCache[key] || emptyWeek();
+    const checked = wd.checked || {};
+    const {groepen, totaalAantal} = getBoodschappenGroepen(wd.slots, wd.extraItems||[]);
+    const afgevinkt = Object.values(checked).filter(Boolean).length;
+
+    if(totaalAantal===0){
+      overlay.innerHTML = `
+        <div class="winkel-header">
+          <button class="winkel-terug" id="winkelTerug">← Terug</button>
+          <h2>🛒 Boodschappenlijst</h2>
+          <span></span>
+        </div>
+        <div class="winkel-empty">Nog geen items voor deze week.</div>
+      `;
+    }else{
+      const body = CATEGORIEEN.filter(cat=>groepen[cat] && groepen[cat].length).map(cat=>`
+        <div class="winkel-cat">${cat}</div>
+        ${groepen[cat].map(r=>{
+          const isChecked = !!checked[r.key];
+          return `<div class="winkel-item ${isChecked?'checked':''}" data-key="${r.key}">
+            <div class="bolletje">${isChecked?'✓':''}</div>
+            <span class="naam">${r.naam}</span>
+            ${!r.isExtra && r.rechts ? `<span class="hoev">${r.rechts}</span>` : ''}
+          </div>`;
+        }).join('')}
+      `).join('');
+
+      overlay.innerHTML = `
+        <div class="winkel-header">
+          <button class="winkel-terug" id="winkelTerug">← Terug</button>
+          <h2>🛒 Boodschappenlijst</h2>
+          <span class="winkel-progress">${afgevinkt}/${totaalAantal}</span>
+        </div>
+        <div class="winkel-body">${body}</div>
+      `;
+    }
+
+    document.getElementById('winkelTerug').onclick = ()=>{
+      winkelmodusRerender = null;
+      document.body.removeChild(overlay);
+    };
+    overlay.querySelectorAll('.winkel-item[data-key]').forEach(el=>{
+      el.onclick = async ()=>{
+        const k = el.dataset.key;
+        const w = planningCache[weekKey(currentMonday)];
+        w.checked = w.checked || {};
+        w.checked[k] = !w.checked[k];
+        renderWinkel(); // direct visuele feedback, niet wachten op Firestore
+        await saveWeek(currentMonday);
+      };
+    });
+  }
+
+  winkelmodusRerender = renderWinkel;
+  renderWinkel();
 }
 
 // ---------- Dag keuze modal ----------
