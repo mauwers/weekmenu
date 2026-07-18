@@ -307,7 +307,115 @@ function defaultGerechten(){
 }
 
 const gerechtenDocRef = doc(db, "weekmenu", "gerechten");
+const vasteArtikelenDocRef = doc(db, "weekmenu", "vasteArtikelen");
 function weekDocRef(key){ return doc(db, "weekmenu", "week_"+key); }
+
+let vasteArtikelen = [];
+
+function defaultVasteArtikelen(){
+  // Samengesteld uit de producten die 3 keer of vaker terugkwamen op de geüploade AH-bonnetjes
+  const namen = [
+    ['Bananen', 'Groenten & Fruit'],
+    ['Amsterdamse uien', 'Groenten & Fruit'],
+    ['Paprika rood', 'Groenten & Fruit'],
+    ['Rucola', 'Groenten & Fruit'],
+    ['Avocado', 'Groenten & Fruit'],
+    ['Komkommer', 'Groenten & Fruit'],
+    ['Roma tomaten', 'Groenten & Fruit'],
+    ['Snoepgroente tomaat', 'Groenten & Fruit'],
+    ['Witte druiven pitloos', 'Groenten & Fruit'],
+    ['Mager spekblokjes', 'Vlees & Vis'],
+    ['Chorizo', 'Vlees & Vis'],
+    ['Mini salami', 'Vlees & Vis'],
+    ['Houdbare magere melk', 'Zuivel & Eieren'],
+    ['Goudse kaas blokjes', 'Zuivel & Eieren'],
+    ['Italiaanse mozzarella', 'Zuivel & Eieren'],
+    ['Danio luchtige kwark', 'Zuivel & Eieren'],
+    ['Griekse yoghurt', 'Zuivel & Eieren'],
+    ['Flatbread', 'Brood & Bakkerij'],
+    ['Kruidkoekreep 6-pack', 'Droge voeding & Conserven'],
+    ['Tortilla chips naturel', 'Droge voeding & Conserven'],
+    ['Tortilla chips nacho cheese', 'Droge voeding & Conserven'],
+    ['Lotus Dinosaurus melkchocolade', 'Droge voeding & Conserven'],
+    ['LU Prince ministars', 'Droge voeding & Conserven'],
+    ['Koffiebonen', 'Dranken'],
+    ['Sinas zero 6-pack', 'Dranken'],
+    ['Fanta Lemon zero sugar', 'Dranken'],
+    ['Toiletpapier', 'Huishouden & Verzorging']
+  ];
+  return namen.map(([naam,cat])=>({id:uid(), naam, categorie:cat}));
+}
+
+// Extra producten opgehaald uit later geüploade kasbonnen (Colruyt/Collect&Go, 29/05/2026).
+// Waarborg, leeggoed en servicekosten zijn bewust weggelaten (geen echte boodschappen).
+const AANVULLING_29052026 = [
+  ['ALPRO mango sojadrink', 'Zuivel & Eieren'],
+  ['ALPRO Geferm. soja limoen-citroen', 'Zuivel & Eieren'],
+  ['ALPRO perzik', 'Zuivel & Eieren'],
+  ['BONI Drinkyoghurt Exotisch fruit', 'Zuivel & Eieren'],
+  ['BONI grenadine yoghurt', 'Zuivel & Eieren'],
+  ['BONI Petit Suisse', 'Zuivel & Eieren'],
+  ['BONI Griekse yoghurt 2%', 'Zuivel & Eieren'],
+  ['BONI Griekse yoghurt abrikoos/perzik', 'Zuivel & Eieren'],
+  ['OIKOS gezouten karamel', 'Zuivel & Eieren'],
+  ['BONI verse kaas perzik', 'Zuivel & Eieren'],
+  ['EVERYDAY verse kaas aardbei', 'Zuivel & Eieren'],
+  ['BONI verse kaas stracciatella', 'Zuivel & Eieren'],
+  ['PINDOS Feta', 'Zuivel & Eieren'],
+  ['BONI vers pizzadeeg', 'Brood & Bakkerij'],
+  ['BONI Turks brood', 'Brood & Bakkerij'],
+  ['POCO LOCO wraps volkoren', 'Brood & Bakkerij'],
+  ['ZESPRI Kiwi Sungold', 'Groenten & Fruit'],
+  ['Nectarines', 'Groenten & Fruit'],
+  ['Rode pompelmoezen', 'Groenten & Fruit'],
+  ['BONI appel granny', 'Groenten & Fruit'],
+  ['Gele paprika\'s', 'Groenten & Fruit'],
+  ['BONI meloen Charentais', 'Groenten & Fruit'],
+  ['Watermeloen pitarm', 'Groenten & Fruit'],
+  ['BONI Limonade Orange Zero', 'Dranken'],
+  ['CANADA DRY Ginger Ale', 'Dranken'],
+  ['LIPTON Ice Tea Zero bruisend', 'Dranken'],
+  ['LIPTON Ice Tea Original bruisend', 'Dranken'],
+  ['EVERYDAY ananassap', 'Dranken'],
+  ['EVERYDAY multivruchtendrink', 'Dranken'],
+  ['ALPRO sojadrink banaan', 'Dranken'],
+  ['BONI passata gezeefde tomaten', 'Droge voeding & Conserven'],
+  ['BONI augurkenschijfjes zoetzuur', 'Droge voeding & Conserven'],
+  ['BONI pesto alla siciliana', 'Droge voeding & Conserven'],
+  ['KNORR saus bechamel', 'Droge voeding & Conserven'],
+  ['BONI kruiden geroosterde uitjes', 'Droge voeding & Conserven'],
+  ['BONI spaghetti volkoren', 'Droge voeding & Conserven'],
+  ['BONI snelkookrijst langkorrel', 'Droge voeding & Conserven'],
+  ['DELACRE Gâteau', 'Droge voeding & Conserven'],
+  ['MELI honingwafels gevuld', 'Droge voeding & Conserven'],
+  ['SUCCÈS DU JOUR gevulde wafels', 'Droge voeding & Conserven'],
+  ['Filet americain', 'Vlees & Vis'],
+  ['Gehakt rund+varken', 'Vlees & Vis']
+];
+
+// Voegt AANVULLING_29052026 automatisch en eenmalig samen met wat al in Firestore staat
+// (op naam vergeleken, hoofdletterongevoelig) — overschrijft niets, voegt enkel nieuwe namen toe.
+async function mergeAanvulling(){
+  const bestaandeNamen = new Set(vasteArtikelen.map(a=>a.naam.trim().toLowerCase()));
+  let gewijzigd = false;
+  AANVULLING_29052026.forEach(([naam,cat])=>{
+    if(!bestaandeNamen.has(naam.trim().toLowerCase())){
+      vasteArtikelen.push({id:uid(), naam, categorie:cat});
+      bestaandeNamen.add(naam.trim().toLowerCase());
+      gewijzigd = true;
+    }
+  });
+  if(gewijzigd) await saveVasteArtikelen();
+}
+
+async function saveVasteArtikelen(){
+  try{
+    await setDoc(vasteArtikelenDocRef, {items: vasteArtikelen});
+  }catch(e){
+    console.error("Fout bij opslaan vaste artikelen:", e);
+    alert("Kon het niet opslaan (verbindingsfout). Probeer het nog eens.");
+  }
+}
 
 // ---------- init & realtime sync ----------
 async function initApp(){
@@ -322,12 +430,33 @@ async function initApp(){
     gerechten = defaultGerechten();
   }
 
+  try{
+    const snap2 = await getDoc(vasteArtikelenDocRef);
+    if(!snap2.exists()){
+      vasteArtikelen = defaultVasteArtikelen();
+      await setDoc(vasteArtikelenDocRef, {items: vasteArtikelen});
+    }else{
+      vasteArtikelen = snap2.data().items || [];
+    }
+    await mergeAanvulling();
+  }catch(e){
+    console.error("Kon vaste artikelen niet initialiseren:", e);
+    vasteArtikelen = defaultVasteArtikelen();
+  }
+
   onSnapshot(gerechtenDocRef, (snap)=>{
     if(snap.exists()){
       gerechten = snap.data().items || [];
       if(ready) render();
     }
   }, (err)=>{ console.error("Sync-fout gerechten:", err); });
+
+  onSnapshot(vasteArtikelenDocRef, (snap)=>{
+    if(snap.exists()){
+      vasteArtikelen = snap.data().items || [];
+      if(ready) render();
+    }
+  }, (err)=>{ console.error("Sync-fout vaste artikelen:", err); });
 
   subscribeWeek(currentMonday);
   ready = true;
@@ -401,6 +530,7 @@ function render(){
 
     <div class="row-actions">
       <button class="btn btn-ghost" id="beheerBtn">📖 Gerechten beheren</button>
+      <button class="btn btn-ghost" id="vasteBtn">⭐ Vaste artikelen</button>
     </div>
 
     <div class="receipt-wrap">
@@ -421,6 +551,7 @@ function render(){
     render();
   };
   document.getElementById('beheerBtn').onclick = ()=>openGerechtenBeheer();
+  document.getElementById('vasteBtn').onclick = ()=>openVasteArtikelen();
   plan.forEach((slot,i)=>{
     document.getElementById('day-'+i).onclick = ()=>openDagKeuze(i);
   });
@@ -761,6 +892,113 @@ function openNieuwGerecht(onSaved){
 }
 
 // ---------- Gerechten beheren ----------
+// ---------- Vaste artikelen ----------
+const BONNETJE_SUGGESTIES = [
+  ['Feta', 'Zuivel & Eieren'],
+  ['Vers pizzadeeg', 'Brood & Bakkerij'],
+  ['Wraps volkoren', 'Brood & Bakkerij'],
+  ['Spaghetti volkoren', 'Droge voeding & Conserven'],
+  ['Snelkookrijst', 'Droge voeding & Conserven'],
+  ['Passata tomaten', 'Droge voeding & Conserven'],
+  ['Alpro sojadrink banaan', 'Dranken'],
+  ['Appelen', 'Groenten & Fruit'],
+  ['Bereid gehakt rund+varken', 'Vlees & Vis'],
+  ['Filet americain', 'Vlees & Vis']
+];
+
+function openVasteArtikelen(){
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  let beheerMode = false;
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x">✕</button>
+      <h3>⭐ Vaste artikelen</h3>
+      <div class="receipt-empty" style="color:var(--ink-soft); padding:0 0 10px; text-align:left;">Tik op een item om het toe te voegen aan de boodschappenlijst van deze week.</div>
+      <div id="vasteLijst"></div>
+      <div class="receipt-add" style="margin-top:16px;">
+        <input type="text" id="nieuwVastInput" placeholder="Nieuw vast artikel…">
+        <button class="btn btn-primary" id="nieuwVastBtn">+ Toevoegen</button>
+      </div>
+      <button class="link-btn" id="beheerToggle" style="margin-top:8px;">Bewerken</button>
+      <button class="link-btn" id="importBtn" style="margin-top:4px; display:block;">📥 10 suggesties uit je Colruyt-bonnetje toevoegen</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  function renderVasteLijst(){
+    const el = document.getElementById('vasteLijst');
+    const groepen = {};
+    vasteArtikelen.forEach(a=>{ (groepen[a.categorie||'Overig']=groepen[a.categorie||'Overig']||[]).push(a); });
+    el.innerHTML = CATEGORIEEN.filter(c=>groepen[c]&&groepen[c].length).map(c=>`
+      <label style="display:block; margin-top:12px;">${c}</label>
+      <div class="persoon-chips">
+        ${groepen[c].map(a=>`<div class="persoon-chip" data-add="${a.id}" data-naam="${a.naam.replace(/"/g,'&quot;')}" data-cat="${a.categorie}">${a.naam}${beheerMode?' <span data-del-vast="'+a.id+'" style="color:var(--tomato); margin-left:4px;">✕</span>':''}</div>`).join('')}
+      </div>
+    `).join('');
+    el.querySelectorAll('[data-add]').forEach(chip=>{
+      chip.onclick = async (evt)=>{
+        if(evt.target.closest('[data-del-vast]')) return;
+        const key = weekKey(currentMonday);
+        const wd = planningCache[key];
+        wd.extraItems = wd.extraItems || [];
+        const naam = chip.dataset.naam;
+        if(wd.extraItems.some(it=>it.naam.toLowerCase()===naam.toLowerCase())){
+          chip.style.opacity = '0.5';
+          return;
+        }
+        wd.extraItems.push({id:uid(), naam, categorie:chip.dataset.cat});
+        chip.style.opacity = '0.5';
+        await saveWeek(currentMonday);
+      };
+    });
+    el.querySelectorAll('[data-del-vast]').forEach(x=>{
+      x.onclick = async (evt)=>{
+        evt.stopPropagation();
+        vasteArtikelen = vasteArtikelen.filter(a=>a.id!==x.dataset.delVast);
+        await saveVasteArtikelen();
+        renderVasteLijst();
+      };
+    });
+  }
+  renderVasteLijst();
+
+  document.getElementById('beheerToggle').onclick = ()=>{
+    beheerMode = !beheerMode;
+    document.getElementById('beheerToggle').textContent = beheerMode ? 'Klaar' : 'Bewerken';
+    renderVasteLijst();
+  };
+  document.getElementById('nieuwVastBtn').onclick = async ()=>{
+    const input = document.getElementById('nieuwVastInput');
+    const naam = input.value.trim();
+    if(!naam) return;
+    vasteArtikelen.push({id:uid(), naam, categorie:guessCategorie(naam)});
+    input.value = '';
+    await saveVasteArtikelen();
+    renderVasteLijst();
+  };
+  document.getElementById('nieuwVastInput').addEventListener('keydown', (e)=>{
+    if(e.key==='Enter') document.getElementById('nieuwVastBtn').click();
+  });
+  document.getElementById('importBtn').onclick = async (evt)=>{
+    const bestaandeNamen = vasteArtikelen.map(a=>a.naam.toLowerCase());
+    const nieuwe = BONNETJE_SUGGESTIES
+      .filter(([naam])=>!bestaandeNamen.includes(naam.toLowerCase()))
+      .map(([naam,cat])=>({id:uid(), naam, categorie:cat}));
+    if(nieuwe.length===0){
+      evt.target.textContent = 'Al allemaal toegevoegd ✓';
+      return;
+    }
+    vasteArtikelen.push(...nieuwe);
+    evt.target.disabled = true;
+    evt.target.textContent = 'Toevoegen…';
+    await saveVasteArtikelen();
+    evt.target.textContent = `${nieuwe.length} toegevoegd ✓`;
+    renderVasteLijst();
+  };
+  document.querySelector('.close-x').onclick = ()=>document.body.removeChild(overlay);
+}
+
 function openGerechtenBeheer(){
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
