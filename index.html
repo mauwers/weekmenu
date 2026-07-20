@@ -308,14 +308,20 @@ const CATEGORIE_KEYWORDS = {
   'Droge voeding & Conserven': ['pasta','spaghetti','rijst','bloem','suiker','olie','azijn','tomatensaus','bouillon','kruiden','peper','zout','conserven','blik','linzen','kikkererwten','pesto','honing','muesli','cornflakes','noten','couscous'],
   'Diepvries': ['diepvries','frites','ijs','diepvriesgroenten','friet'],
   'Dranken': ['water','sap','frisdrank','wijn','bier','koffie','thee','cola'],
-  'Huishouden & Verzorging': ['wc-papier','toiletpapier','afwasmiddel','wasmiddel','shampoo','tandpasta','zeep','vuilniszak','keukenrol','hondenvoer','kattenbakvulling']
+  'Huishouden & Verzorging': ['wc-papier','toiletpapier','afwasmiddel','wasmiddel','wasverzachter','shampoo','tandpasta','zeep','vuilniszak','keukenrol','hondenvoer','kattenbakvulling','vaatwas','douchegel','deodorant']
 };
 const CATEGORIEEN = [...Object.keys(CATEGORIE_KEYWORDS), 'Overig'];
 
+// Alle trefwoorden op één hoop, langste (= specifiekste) eerst getest,
+// zodat bv. "vaatwas" in "vaatwaszout" voorrang krijgt op het generieke "zout".
+const CATEGORIE_TREFWOORDEN_FLAT = Object.entries(CATEGORIE_KEYWORDS)
+  .flatMap(([cat, woorden]) => woorden.map(w => [w, cat]))
+  .sort((a,b) => b[0].length - a[0].length);
+
 function guessCategorie(naam){
   const n = (naam||'').toLowerCase();
-  for(const [cat, woorden] of Object.entries(CATEGORIE_KEYWORDS)){
-    if(woorden.some(w=>n.includes(w))) return cat;
+  for(const [w, cat] of CATEGORIE_TREFWOORDEN_FLAT){
+    if(n.includes(w)) return cat;
   }
   return 'Overig';
 }
@@ -637,7 +643,9 @@ function renderDayCard(slot,i){
   let hoofdregel;
   if(type === 'thuis'){
     const gerecht = gerechten.find(g=>g.id===slot.gerechtId);
-    hoofdregel = gerecht ? `<div class="gerecht">${gerecht.naam}</div>` : `<div class="leeg">Nog niks gekozen</div>`;
+    hoofdregel = gerecht
+      ? `<div class="gerecht">${gerecht.naam}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>`
+      : `<div class="leeg">Nog niks gekozen</div>`;
   }else{
     const info = TYPE_INFO[type];
     hoofdregel = `<div class="gerecht">${info.icon} ${info.label}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>`;
@@ -850,13 +858,16 @@ function openDagKeuze(dayIndex){
         <input type="text" id="zoekGerecht" placeholder="Zoeken…">
         <div class="gerecht-lijst" id="gerechtLijst"></div>
         <button class="link-btn" id="nieuwGerechtBtn">+ Nieuw gerecht toevoegen</button>
+        <label>Opmerking (optioneel)</label>
+        <input type="text" id="notitieVeld" placeholder="bv. met haloumi i.p.v. vlees" value="${gekozenNotitie}">
       `;
       renderLijst();
       document.getElementById('zoekGerecht').oninput = (e)=>renderLijst(e.target.value);
+      document.getElementById('notitieVeld').oninput = (e)=>{ gekozenNotitie = e.target.value; };
       document.getElementById('nieuwGerechtBtn').onclick = ()=>{
         document.body.removeChild(overlay);
         openNieuwGerecht((nieuwId)=>{
-          planningCache[key].slots[dayIndex] = {gerechtId:nieuwId, persoon:gekozenPersoon, type:'thuis', notitie:''};
+          planningCache[key].slots[dayIndex] = {gerechtId:nieuwId, persoon:gekozenPersoon, type:'thuis', notitie:gekozenNotitie};
           openDagKeuze(dayIndex);
         });
       };
@@ -898,7 +909,7 @@ function openDagKeuze(dayIndex){
       gerechtId: gekozenType==='thuis' ? gekozenId : null,
       persoon: gekozenPersoon,
       type: gekozenType,
-      notitie: gekozenType!=='thuis' ? gekozenNotitie : ''
+      notitie: gekozenNotitie
     };
     await saveWeek(currentMonday);
     document.body.removeChild(overlay);
@@ -1092,6 +1103,7 @@ function openVasteArtikelen(){
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
   let beheerMode = false;
+  let nieuwCategorie = 'Overig';
   overlay.innerHTML = `
     <div class="modal">
       <button class="close-x">✕</button>
@@ -1102,6 +1114,9 @@ function openVasteArtikelen(){
         <input type="text" id="nieuwVastInput" placeholder="Nieuw vast artikel…">
         <button class="btn btn-primary" id="nieuwVastBtn">+ Toevoegen</button>
       </div>
+      <select id="nieuwVastCat" style="width:100%; margin-top:8px; background:var(--bg); border:1px solid var(--line); color:var(--ink-soft); border-radius:8px; padding:7px 9px; font-family:inherit; font-size:0.8rem;">
+        ${CATEGORIEEN.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
       <button class="link-btn" id="beheerToggle" style="margin-top:8px;">Bewerken</button>
       <button class="link-btn" id="importBtn" style="margin-top:4px; display:block;">📥 Aanvullende suggesties toevoegen (~50 items)</button>
     </div>
@@ -1115,12 +1130,20 @@ function openVasteArtikelen(){
     el.innerHTML = CATEGORIEEN.filter(c=>groepen[c]&&groepen[c].length).map(c=>`
       <label style="display:block; margin-top:12px;">${c}</label>
       <div class="persoon-chips">
-        ${groepen[c].map(a=>`<div class="persoon-chip" data-add="${a.id}" data-naam="${a.naam.replace(/"/g,'&quot;')}" data-cat="${a.categorie}">${a.naam}${beheerMode?' <span data-del-vast="'+a.id+'" style="color:var(--tomato); margin-left:4px;">✕</span>':''}</div>`).join('')}
+        ${groepen[c].map(a=>beheerMode
+          ? `<div class="persoon-chip" style="display:flex; align-items:center; gap:4px; padding:4px 6px 4px 13px;">
+              <span>${a.naam}</span>
+              <select data-cat-vast="${a.id}" style="background:var(--bg); color:var(--ink-soft); border:1px solid var(--line); border-radius:6px; font-size:0.7rem; padding:2px;">
+                ${CATEGORIEEN.map(cc=>`<option value="${cc}" ${cc===a.categorie?'selected':''}>${cc}</option>`).join('')}
+              </select>
+              <span data-del-vast="${a.id}" style="color:var(--tomato); cursor:pointer; padding:0 4px;">✕</span>
+            </div>`
+          : `<div class="persoon-chip" data-add="${a.id}" data-naam="${a.naam.replace(/"/g,'&quot;')}" data-cat="${a.categorie}">${a.naam}</div>`
+        ).join('')}
       </div>
     `).join('');
     el.querySelectorAll('[data-add]').forEach(chip=>{
-      chip.onclick = async (evt)=>{
-        if(evt.target.closest('[data-del-vast]')) return;
+      chip.onclick = async ()=>{
         const key = weekKey(currentMonday);
         const wd = planningCache[key];
         wd.extraItems = wd.extraItems || [];
@@ -1135,9 +1158,16 @@ function openVasteArtikelen(){
       };
     });
     el.querySelectorAll('[data-del-vast]').forEach(x=>{
-      x.onclick = async (evt)=>{
-        evt.stopPropagation();
+      x.onclick = async ()=>{
         vasteArtikelen = vasteArtikelen.filter(a=>a.id!==x.dataset.delVast);
+        await saveVasteArtikelen();
+        renderVasteLijst();
+      };
+    });
+    el.querySelectorAll('[data-cat-vast]').forEach(sel=>{
+      sel.onchange = async ()=>{
+        const item = vasteArtikelen.find(a=>a.id===sel.dataset.catVast);
+        if(item) item.categorie = sel.value;
         await saveVasteArtikelen();
         renderVasteLijst();
       };
@@ -1150,12 +1180,22 @@ function openVasteArtikelen(){
     document.getElementById('beheerToggle').textContent = beheerMode ? 'Klaar' : 'Bewerken';
     renderVasteLijst();
   };
+  document.getElementById('nieuwVastInput').addEventListener('blur', ()=>{
+    const naam = document.getElementById('nieuwVastInput').value.trim();
+    if(naam){
+      nieuwCategorie = guessCategorie(naam);
+      document.getElementById('nieuwVastCat').value = nieuwCategorie;
+    }
+  });
+  document.getElementById('nieuwVastCat').onchange = (e)=>{ nieuwCategorie = e.target.value; };
   document.getElementById('nieuwVastBtn').onclick = async ()=>{
     const input = document.getElementById('nieuwVastInput');
     const naam = input.value.trim();
     if(!naam) return;
-    vasteArtikelen.push({id:uid(), naam, categorie:guessCategorie(naam)});
+    vasteArtikelen.push({id:uid(), naam, categorie:document.getElementById('nieuwVastCat').value || guessCategorie(naam)});
     input.value = '';
+    nieuwCategorie = 'Overig';
+    document.getElementById('nieuwVastCat').value = 'Overig';
     await saveVasteArtikelen();
     renderVasteLijst();
   };
