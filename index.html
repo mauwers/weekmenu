@@ -106,6 +106,12 @@
     font-weight:600;
     width:fit-content;
   }
+  .day-card.training-dag{border-color:var(--tomato);}
+  .day-card .chip-training{
+    margin-top:0; margin-bottom:8px;
+    background:rgba(193,67,42,0.18);
+    color:var(--tomato);
+  }
 
   /* buttons */
   .row-actions{display:flex; justify-content:center; gap:12px; margin:8px 0 34px; flex-wrap:wrap;}
@@ -349,6 +355,8 @@ function defaultGerechten(){
 
 const gerechtenDocRef = doc(db, "weekmenu", "gerechten");
 const vasteArtikelenDocRef = doc(db, "weekmenu", "vasteArtikelen");
+const volleybalDocRef = doc(db, "weekmenu", "volleybalDagen");
+let volleybalDagen = [];
 function weekDocRef(key){ return doc(db, "weekmenu", "week_"+key); }
 
 let vasteArtikelen = [];
@@ -499,6 +507,11 @@ async function initApp(){
     }
   }, (err)=>{ console.error("Sync-fout vaste artikelen:", err); });
 
+  onSnapshot(volleybalDocRef, (snap)=>{
+    volleybalDagen = snap.exists() ? (snap.data().dates || []) : [];
+    if(ready) render();
+  }, (err)=>{ console.error("Sync-fout volleybaldagen:", err); });
+
   subscribeWeek(currentMonday);
   ready = true;
 }
@@ -641,7 +654,10 @@ function render(){
 
 function renderDayCard(slot,i){
   const dag = DAGEN[i];
-  const datum = fmtDate(addDays(currentMonday,i));
+  const dagDatumObj = addDays(currentMonday,i);
+  const datum = fmtDate(dagDatumObj);
+  const isoDag = dagDatumObj.toISOString().slice(0,10);
+  const heeftTraining = volleybalDagen.includes(isoDag);
   const type = slot.type || 'thuis';
   let hoofdregel;
   if(type === 'thuis'){
@@ -654,10 +670,11 @@ function renderDayCard(slot,i){
     hoofdregel = `<div class="gerecht">${info.icon} ${info.label}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>`;
   }
   return `
-    <div class="day-card" id="day-${i}">
+    <div class="day-card ${heeftTraining ? 'training-dag' : ''}" id="day-${i}">
       <div>
         <div class="daynaam">${dag}</div>
         <div class="datum">${datum}</div>
+        ${heeftTraining ? '<div class="chip chip-training">🏐 Training — snel eten!</div>' : ''}
         ${hoofdregel}
       </div>
       ${slot.persoon ? `<div class="chip">👤 ${slot.persoon}</div>` : ''}
