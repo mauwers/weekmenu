@@ -297,7 +297,15 @@ function getWeekStart(d){
   start.setHours(0,0,0,0);
   return start;
 }
-function weekKey(monday){ return monday.toISOString().slice(0,10); }
+function toLocalISODate(d){
+  // Correcte lokale kalenderdatum (i.p.v. toISOString(), dat naar UTC omrekent
+  // en daardoor in België's tijdzone de datum een dag kan laten verschuiven).
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function weekKey(monday){ return toLocalISODate(monday); }
 function fmtDate(d){ return d.toLocaleDateString('nl-BE',{day:'numeric',month:'short'}); }
 function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -656,8 +664,9 @@ function renderDayCard(slot,i){
   const dag = DAGEN[i];
   const dagDatumObj = addDays(currentMonday,i);
   const datum = fmtDate(dagDatumObj);
-  const isoDag = dagDatumObj.toISOString().slice(0,10);
-  const heeftTraining = volleybalDagen.includes(isoDag);
+  const isoDag = toLocalISODate(dagDatumObj);
+  const trainingInfo = volleybalDagen.find(v => v.datum === isoDag);
+  const heeftTraining = !!trainingInfo;
   const type = slot.type || 'thuis';
   let hoofdregel;
   if(type === 'thuis'){
@@ -674,7 +683,7 @@ function renderDayCard(slot,i){
       <div>
         <div class="daynaam">${dag}</div>
         <div class="datum">${datum}</div>
-        ${heeftTraining ? '<div class="chip chip-training">🏐 Training — snel eten!</div>' : ''}
+        ${heeftTraining ? '<div class="chip chip-training">🏐 Training '+(trainingInfo.namen||'')+' — snel eten!</div>' : ''}
         ${hoofdregel}
       </div>
       ${slot.persoon ? `<div class="chip">👤 ${slot.persoon}</div>` : ''}
