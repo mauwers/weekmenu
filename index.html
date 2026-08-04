@@ -831,7 +831,7 @@ function openWinkelmodus(){
 function openDagKeuze(dayIndex){
   const key = weekKey(currentMonday);
   const slot = planningCache[key].slots[dayIndex];
-  const magKiezen = ['Vrijdag','Zaterdag','Zondag'].includes(DAGEN[dayIndex]);
+  const magKiezen = true; // op elke dag mag gekozen worden voor thuis/afhalen/buitenshuis/restjes
   let gekozenType = magKiezen ? (slot.type || 'thuis') : 'thuis';
   let gekozenId = slot.gerechtId;
   let gekozenPersoon = slot.persoon;
