@@ -536,7 +536,12 @@ function subscribeWeek(monday){
       data.extraItems = data.extraItems || [];
       planningCache[key] = data;
     }else{
-      planningCache[key] = emptyWeek();
+      // Nieuwe/nog niet bestaande week: automatisch de vaste "🔁"-items alvast toevoegen
+      const basisWeek = emptyWeek();
+      const automatischeItems = (vasteArtikelen||[]).filter(a=>a.automatisch);
+      basisWeek.extraItems = automatischeItems.map(a=>({id:uid(), naam:a.naam, categorie:a.categorie}));
+      planningCache[key] = basisWeek;
+      setDoc(weekDocRef(key), basisWeek).catch(e=>console.error("Kon basisweek niet aanmaken:", e));
     }
     if(weekKey(currentMonday)===key){
       render();
@@ -645,13 +650,23 @@ function render(){
   if(extraAddBtn){
     const doAdd = async ()=>{
       const input = document.getElementById('extraInput');
+      const onthoudBox = document.getElementById('onthoudVast');
       const naam = input.value.trim();
       if(!naam) return;
+      const cat = guessCategorie(naam);
       const wd = planningCache[key];
       wd.extraItems = wd.extraItems || [];
-      wd.extraItems.push({id:uid(), naam, categorie:guessCategorie(naam)});
+      wd.extraItems.push({id:uid(), naam, categorie:cat});
       input.value = '';
       await saveWeek(currentMonday);
+
+      if(onthoudBox && onthoudBox.checked){
+        const bestaatAl = vasteArtikelen.some(a=>a.naam.toLowerCase()===naam.toLowerCase());
+        if(!bestaatAl){
+          vasteArtikelen.push({id:uid(), naam, categorie:cat});
+          await saveVasteArtikelen();
+        }
+      }
     };
     extraAddBtn.onclick = doAdd;
     document.getElementById('extraInput').addEventListener('keydown', (e)=>{
@@ -757,6 +772,10 @@ function renderReceipt(plan, checked, extraItems){
       <input type="text" id="extraInput" placeholder="Extra item… (bv. hondenvoer)">
       <button class="btn btn-primary" id="extraAddBtn">+ Toevoegen</button>
     </div>
+    <label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#6b6b58; margin:-2px 0 10px; cursor:pointer;">
+      <input type="checkbox" id="onthoudVast" checked style="margin:0;">
+      ⭐ Ook onthouden als vast artikel voor volgende keer
+    </label>
     <hr>
     <div class="receipt-total"><span>${totaalAantal} artikelen</span><span>tik af = check</span></div>
   </div>`;
@@ -1161,16 +1180,16 @@ function openVasteArtikelen(){
       <div class="persoon-chips">
         ${groepen[c].map(a=>beheerMode
           ? `<div class="persoon-chip" style="display:flex; align-items:center; gap:4px; padding:4px 6px 4px 13px;">
-              <span>${a.naam}</span>
+              <span data-toggle-auto="${a.id}" title="Elke week automatisch toevoegen" style="cursor:pointer;">${a.automatisch?'🔁':'⚪'} ${a.naam}</span>
               <select data-cat-vast="${a.id}" style="background:var(--bg); color:var(--ink-soft); border:1px solid var(--line); border-radius:6px; font-size:0.7rem; padding:2px;">
                 ${CATEGORIEEN.map(cc=>`<option value="${cc}" ${cc===a.categorie?'selected':''}>${cc}</option>`).join('')}
               </select>
               <span data-del-vast="${a.id}" style="color:var(--tomato); cursor:pointer; padding:0 4px;">✕</span>
             </div>`
-          : `<div class="persoon-chip" data-add="${a.id}" data-naam="${a.naam.replace(/"/g,'&quot;')}" data-cat="${a.categorie}">${a.naam}</div>`
+          : `<div class="persoon-chip" data-add="${a.id}" data-naam="${a.naam.replace(/"/g,'&quot;')}" data-cat="${a.categorie}">${a.automatisch?'🔁 ':''}${a.naam}</div>`
         ).join('')}
       </div>
-    `).join('');
+    `).join('') + (beheerMode ? '<div class="receipt-empty" style="color:var(--ink-faint); text-align:left; padding:12px 0 0;">🔁 = staat elke week automatisch al op de lijst. Tik op de naam om aan/uit te zetten.</div>' : '');
     el.querySelectorAll('[data-add]').forEach(chip=>{
       chip.onclick = async ()=>{
         const key = weekKey(currentMonday);
@@ -1197,6 +1216,14 @@ function openVasteArtikelen(){
       sel.onchange = async ()=>{
         const item = vasteArtikelen.find(a=>a.id===sel.dataset.catVast);
         if(item) item.categorie = sel.value;
+        await saveVasteArtikelen();
+        renderVasteLijst();
+      };
+    });
+    el.querySelectorAll('[data-toggle-auto]').forEach(span=>{
+      span.onclick = async ()=>{
+        const item = vasteArtikelen.find(a=>a.id===span.dataset.toggleAuto);
+        if(item) item.automatisch = !item.automatisch;
         await saveVasteArtikelen();
         renderVasteLijst();
       };
