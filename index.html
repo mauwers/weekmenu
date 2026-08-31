@@ -603,6 +603,9 @@ function render(){
       <button class="btn btn-ghost" id="vasteBtn">⭐ Vaste artikelen</button>
       <button class="btn btn-primary" id="winkelBtn">🛒 Ga winkelen</button>
     </div>
+    <div class="row-actions" style="margin-top:-10px;">
+      <button class="link-btn" id="pasBasisToeBtn">🔁 Vaste weekbasis nu toepassen op deze week</button>
+    </div>
 
     <div class="receipt-wrap">
       ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[])}
@@ -612,6 +615,21 @@ function render(){
   `;
 
   document.getElementById('winkelBtn').onclick = ()=>openWinkelmodus();
+  document.getElementById('pasBasisToeBtn').onclick = async ()=>{
+    const wd = planningCache[key];
+    wd.extraItems = wd.extraItems || [];
+    const automatischeItems = (vasteArtikelen||[]).filter(a=>a.automatisch);
+    let toegevoegd = 0;
+    automatischeItems.forEach(a=>{
+      const bestaatAl = wd.extraItems.some(it=>it.naam.toLowerCase()===a.naam.toLowerCase());
+      if(!bestaatAl){
+        wd.extraItems.push({id:uid(), naam:a.naam, categorie:a.categorie});
+        toegevoegd++;
+      }
+    });
+    await saveWeek(currentMonday);
+    if(toegevoegd===0) alert('Alle vaste basis-items staan al op deze week.');
+  };
   document.getElementById('prevWeek').onclick = ()=>{
     currentMonday = addDays(currentMonday,-7);
     subscribeWeek(currentMonday);
