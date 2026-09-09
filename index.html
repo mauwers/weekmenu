@@ -540,6 +540,15 @@ function subscribeWeek(monday){
       const basisWeek = emptyWeek();
       const automatischeItems = (vasteArtikelen||[]).filter(a=>a.automatisch);
       basisWeek.extraItems = automatischeItems.map(a=>({id:uid(), naam:a.naam, categorie:a.categorie}));
+
+      // Vaste regel: elke maandag t/m eind april 2027 eten we bij oma (aanpasbaar per week, bv. tijdens vakanties)
+      const maandagIndex = DAGEN.indexOf('Maandag');
+      const maandagDatum = addDays(monday, maandagIndex);
+      const omaEindDatum = new Date('2027-04-30T23:59:59');
+      if(maandagIndex>-1 && maandagDatum <= omaEindDatum){
+        basisWeek.slots[maandagIndex] = {gerechtId:null, persoon:'Allemaal', type:'buitenshuis', notitie:'bij oma'};
+      }
+
       planningCache[key] = basisWeek;
       setDoc(weekDocRef(key), basisWeek).catch(e=>console.error("Kon basisweek niet aanmaken:", e));
     }
