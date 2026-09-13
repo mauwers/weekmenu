@@ -343,7 +343,7 @@ function guessCategorie(naam){
   return 'Overig';
 }
 
-const EENHEDEN_PATROON = 'g|kg|mg|ml|cl|l|el|tl|eetlepels?|theelepels?|stuks?|teentjes?|blikjes?|takjes?|snuifjes?|kopjes?|potjes?|pakjes?|plakjes?|blaadjes?|schijfjes?';
+const EENHEDEN_PATROON = 'g|kg|mg|ml|cl|l|el|tl|eetlepels?|theelepels?|stuks?|teentjes?|blikjes?|takjes?|snuifjes?|kopjes?|potjes?|pakjes?|plakjes?|blaadjes?|schijfjes?|bol(?:len)?|reep(?:jes?)?|repen|krop(?:pen)?|bosje(?:s)?|zakje(?:s)?';
 
 function parseGeplakteRecept(tekst){
   const ruweLijnen = (tekst||'').split('\n').map(l=>l.trim());
@@ -789,13 +789,27 @@ function renderDayCard(slot,i){
   `;
 }
 
+// Voor het herkennen van "is dit hetzelfde artikel", niet voor de weergave:
+// een voorloop-telwoord dat eigenlijk een eenheid is (bv. "bol mozzarella") en
+// een klein lijstje onderscheid-loze merknamen/bijvoeglijke woorden negeren we.
+const MATCH_NEGEER_WOORDEN = ['ah','boni','everyday','italiaanse','italiaans'];
+function matchSleutel(naam){
+  let n = (naam||'').trim().toLowerCase();
+  const eenheidVoorloop = new RegExp('^(' + EENHEDEN_PATROON + ')\\s+', 'i');
+  n = n.replace(eenheidVoorloop, '');
+  MATCH_NEGEER_WOORDEN.forEach(w=>{
+    n = n.replace(new RegExp('\\b'+w+'\\b','gi'), '');
+  });
+  return n.replace(/\s+/g,' ').trim();
+}
+
 function getBoodschappenGroepen(plan, extraItems){
   extraItems = extraItems || [];
   const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
-  const agg = {}; // key = genormaliseerde naam (ongeacht eenheid), zodat hetzelfde item niet dubbel verschijnt
+  const agg = {}; // key = herkenningssleutel (ongeacht eenheid/merk), zodat hetzelfde item niet dubbel verschijnt
 
   function voegToe(naam, hoeveelheid, eenheid, categorie, extraId){
-    const key = naam.trim().toLowerCase();
+    const key = matchSleutel(naam);
     if(!agg[key]) agg[key] = {naam: naam.trim(), categorie, totaalPerEenheid:{}, teksten:[], extraIds:[]};
     const num = parseFloat((hoeveelheid||'').toString().replace(',','.'));
     if(!isNaN(num) && eenheid){
