@@ -343,6 +343,55 @@ function guessCategorie(naam){
   return 'Overig';
 }
 
+const EENHEDEN_PATROON = 'g|kg|mg|ml|cl|l|el|tl|eetlepels?|theelepels?|stuks?|teentjes?|blikjes?|takjes?|snuifjes?|kopjes?|potjes?|pakjes?|plakjes?|blaadjes?|schijfjes?';
+
+function parseGeplakteRecept(tekst){
+  const ruweLijnen = (tekst||'').split('\n').map(l=>l.trim());
+  const lijnen = ruweLijnen.filter(l=>l.length>0);
+
+  // Titel: expliciete "Recept:"/"Titel:" label, anders de eerste lijn die geen kopje/bullet is
+  let naam = 'Geïmporteerd recept';
+  const titelMatch = lijnen.find(l=>/^(recept|titel)\s*[:\-]/i.test(l));
+  if(titelMatch){
+    naam = titelMatch.replace(/^(recept|titel)\s*[:\-]\s*/i,'').trim();
+  }else if(lijnen[0] && !/ingredi|bereid|stappen|werkwijze/i.test(lijnen[0])){
+    naam = lijnen[0].replace(/^#+\s*/,'').trim();
+  }
+
+  const ingrStartIdx = lijnen.findIndex(l=>/ingredi/i.test(l));
+  const bereidStartIdx = lijnen.findIndex((l,i)=> i>ingrStartIdx && /^#*\s*(bereiding|bereidingswijze|stappen|werkwijze|instructies)/i.test(l));
+
+  const ingredienten = [];
+  if(ingrStartIdx > -1){
+    const eind = bereidStartIdx > -1 ? bereidStartIdx : lijnen.length;
+    for(let i=ingrStartIdx+1; i<eind; i++){
+      let lijn = lijnen[i];
+      // bullets/nummering aan het begin wegknippen: -, •, *, 1., 2), enz.
+      lijn = lijn.replace(/^[\-\•\*]+\s*/,'').replace(/^\d+[\.\)]\s*/,'').trim();
+      if(!lijn) continue;
+      const regex = new RegExp('^([\\d.,\\/]+)\\s*(' + EENHEDEN_PATROON + ')?\\s*(.*)$', 'i');
+      const m = lijn.match(regex);
+      let hoeveelheid = '', eenheid = '', ingNaam = lijn;
+      if(m && m[1]){
+        hoeveelheid = m[1].trim();
+        eenheid = (m[2]||'').trim();
+        ingNaam = (m[3]||'').trim() || lijn;
+      }
+      ingredienten.push({
+        naam: ingNaam, hoeveelheid, eenheid,
+        categorie: guessCategorie(ingNaam)
+      });
+    }
+  }
+
+  let bereidingswijze = '';
+  if(bereidStartIdx > -1){
+    bereidingswijze = lijnen.slice(bereidStartIdx+1).join('\n').trim();
+  }
+
+  return { naam, ingredienten, bereidingswijze };
+}
+
 function defaultGerechten(){
   return [
     {id:uid(), naam:"Spaghetti bolognese", ingredienten:[
@@ -654,6 +703,12 @@ function render(){
   plan.forEach((slot,i)=>{
     document.getElementById('day-'+i).onclick = ()=>openDagKeuze(i);
   });
+  document.querySelectorAll('[data-bekijk-recept]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      openBekijkRecept(btn.dataset.bekijkRecept);
+    };
+  });
   document.querySelectorAll('.receipt-item[data-key]').forEach(el=>{
     el.onclick = async (evt)=>{
       if(evt.target.closest('.del-extra')) return;
@@ -714,7 +769,8 @@ function renderDayCard(slot,i){
   if(type === 'thuis'){
     const gerecht = gerechten.find(g=>g.id===slot.gerechtId);
     hoofdregel = gerecht
-      ? `<div class="gerecht">${gerecht.naam}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>`
+      ? `<div class="gerecht">${gerecht.naam}${slot.notitie ? '<br><span style="font-weight:400;font-size:0.82rem;color:var(--ink-soft);">'+slot.notitie+'</span>' : ''}</div>
+         ${gerecht.bereidingswijze ? `<button class="link-btn" data-bekijk-recept="${gerecht.id}" style="padding:2px 0; font-size:0.72rem;">📄 Bekijk recept</button>` : ''}`
       : `<div class="leeg">Nog niks gekozen</div>`;
   }else{
     const info = TYPE_INFO[type];
@@ -809,6 +865,33 @@ function renderReceipt(plan, checked, extraItems){
 }
 
 // ---------- Winkelmodus ----------
+function openBekijkRecept(gerechtId){
+  const gerecht = gerechten.find(g=>g.id===gerechtId);
+  if(!gerecht) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x">✕</button>
+      <h3>${gerecht.naam}</h3>
+      <label>Ingrediënten</label>
+      <div style="font-size:0.9rem; line-height:1.6; margin-bottom:6px;">
+        ${gerecht.ingredienten.map(ing=>`• ${[ing.hoeveelheid, ing.eenheid, ing.naam].filter(Boolean).join(' ')}`).join('<br>')}
+      </div>
+      ${gerecht.bereidingswijze ? `
+        <label>Bereidingswijze</label>
+        <div style="font-size:0.9rem; line-height:1.6; white-space:pre-wrap;">${gerecht.bereidingswijze.replace(/</g,'&lt;')}</div>
+      ` : ''}
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="sluitReceptBtn">Sluiten</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('sluitReceptBtn').onclick = ()=>document.body.removeChild(overlay);
+  document.querySelector('.close-x').onclick = ()=>document.body.removeChild(overlay);
+}
+
 function openWinkelmodus(){
   const overlay = document.createElement('div');
   overlay.className = 'winkel-overlay';
@@ -996,8 +1079,9 @@ function openDagKeuze(dayIndex){
 function openNieuwGerecht(onSaved, bestaandGerecht){
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
-  const isBewerken = !!bestaandGerecht;
-  let rijen = isBewerken
+  const heeftVoorinvulling = !!bestaandGerecht;
+  const isBewerken = !!(bestaandGerecht && bestaandGerecht.id); // heeft een id = bestaand gerecht bijwerken; anders = nieuw (bv. uit import)
+  let rijen = heeftVoorinvulling
     ? bestaandGerecht.ingredienten.map(ing=>({
         naam: ing.naam, hoeveelheid: ing.hoeveelheid, eenheid: ing.eenheid,
         categorie: ing.categorie || guessCategorie(ing.naam), categorieTouched: true
@@ -1008,12 +1092,14 @@ function openNieuwGerecht(onSaved, bestaandGerecht){
   overlay.innerHTML = `
     <div class="modal">
       <button class="close-x">✕</button>
-      <h3>${isBewerken ? 'Gerecht bewerken' : 'Nieuw gerecht'}</h3>
+      <h3>${isBewerken ? 'Gerecht bewerken' : (heeftVoorinvulling ? 'Recept controleren en bewaren' : 'Nieuw gerecht')}</h3>
       <label>Naam van het gerecht</label>
-      <input type="text" id="naamGerecht" placeholder="bv. Lasagne" value="${isBewerken ? bestaandGerecht.naam.replace(/"/g,'&quot;') : ''}">
+      <input type="text" id="naamGerecht" placeholder="bv. Lasagne" value="${heeftVoorinvulling ? bestaandGerecht.naam.replace(/"/g,'&quot;') : ''}">
       <label>Ingrediënten</label>
       <div id="ingRows"></div>
       <button class="link-btn" id="addIngBtn">+ Ingrediënt toevoegen</button>
+      <label>Bereidingswijze (optioneel)</label>
+      <textarea id="bereidingVeld" rows="5" placeholder="Stap 1: ...&#10;Stap 2: ..." style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:0.88rem; resize:vertical;">${heeftVoorinvulling ? (bestaandGerecht.bereidingswijze||'').replace(/</g,'&lt;') : ''}</textarea>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="annuleerBtn">Annuleren</button>
         <button class="btn btn-primary" id="bewaarBtn">Bewaren</button>
@@ -1081,6 +1167,7 @@ function openNieuwGerecht(onSaved, bestaandGerecht){
       naam:r.naam, hoeveelheid:r.hoeveelheid, eenheid:r.eenheid,
       categorie:r.categorie || guessCategorie(r.naam)
     }));
+    const bereidingswijze = document.getElementById('bereidingVeld').value.trim();
     const bewaarBtn = document.getElementById('bewaarBtn');
     bewaarBtn.disabled = true;
     bewaarBtn.textContent = 'Bewaren…';
@@ -1089,7 +1176,7 @@ function openNieuwGerecht(onSaved, bestaandGerecht){
       const origineel = gerechten.find(g=>g.id===bestaandGerecht.id);
       const origineleData = origineel ? {...origineel} : null;
       const idx = gerechten.findIndex(g=>g.id===bestaandGerecht.id);
-      if(idx>-1) gerechten[idx] = {id:bestaandGerecht.id, naam, ingredienten};
+      if(idx>-1) gerechten[idx] = {id:bestaandGerecht.id, naam, ingredienten, bereidingswijze};
       try{
         await saveGerechten();
         document.body.removeChild(overlay);
@@ -1100,7 +1187,7 @@ function openNieuwGerecht(onSaved, bestaandGerecht){
         bewaarBtn.textContent = 'Bewaren';
       }
     }else{
-      const nieuw = {id:uid(), naam, ingredienten};
+      const nieuw = {id:uid(), naam, ingredienten, bereidingswijze};
       try{
         gerechten.push(nieuw);
         await saveGerechten();
@@ -1313,6 +1400,7 @@ function openGerechtenBeheer(){
       <h3>Gerechten beheren</h3>
       <div id="beheerLijst"></div>
       <button class="link-btn" id="nieuwBtn2">+ Nieuw gerecht toevoegen</button>
+      <button class="link-btn" id="importReceptBtn" style="display:block; margin-top:4px;">📋 Importeer recept (plak tekst)</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1349,7 +1437,47 @@ function openGerechtenBeheer(){
     document.body.removeChild(overlay);
     openNieuwGerecht(()=>{ openGerechtenBeheer(); });
   };
+  document.getElementById('importReceptBtn').onclick = ()=>{
+    document.body.removeChild(overlay);
+    openImporteerRecept(()=>{ openGerechtenBeheer(); });
+  };
   document.querySelector('.close-x').onclick = ()=>document.body.removeChild(overlay);
+}
+
+function openImporteerRecept(onKlaar){
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x">✕</button>
+      <h3>📋 Recept importeren</h3>
+      <div class="receipt-empty" style="color:var(--ink-soft); padding:0 0 10px; text-align:left;">
+        Plak hieronder het volledige recept (bv. rechtstreeks vanuit Gemini/ChatGPT) — naam, ingrediëntenlijst en eventueel de bereiding. De app probeert dit automatisch te herkennen; op het volgende scherm kan je alles nog nakijken en corrigeren.
+      </div>
+      <textarea id="plakVeld" rows="12" placeholder="Plak hier het recept…" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:0.85rem; resize:vertical;"></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="annuleerImportBtn">Annuleren</button>
+        <button class="btn btn-primary" id="verwerkBtn">Verwerken →</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('annuleerImportBtn').onclick = ()=>{
+    document.body.removeChild(overlay);
+    onKlaar();
+  };
+  document.querySelector('.close-x').onclick = ()=>{
+    document.body.removeChild(overlay);
+    onKlaar();
+  };
+  document.getElementById('verwerkBtn').onclick = ()=>{
+    const tekst = document.getElementById('plakVeld').value;
+    if(!tekst.trim()){ alert('Plak eerst een recept in het veld.'); return; }
+    const resultaat = parseGeplakteRecept(tekst);
+    document.body.removeChild(overlay);
+    openNieuwGerecht(()=>{ onKlaar(); }, resultaat);
+  };
 }
 
 initApp();
