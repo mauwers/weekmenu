@@ -722,9 +722,9 @@ function render(){
   document.querySelectorAll('.del-extra').forEach(btn=>{
     btn.onclick = async (evt)=>{
       evt.stopPropagation();
+      const idsOmTeVerwijderen = btn.dataset.delExtra.split(',');
       const wd = planningCache[key];
-      wd.extraItems = (wd.extraItems||[]).filter(it=>it.id!==btn.dataset.delExtra);
-      if(wd.checked) delete wd.checked['extra:'+btn.dataset.delExtra];
+      wd.extraItems = (wd.extraItems||[]).filter(it=>!idsOmTeVerwijderen.includes(it.id));
       await saveWeek(currentMonday);
     };
   });
@@ -792,30 +792,43 @@ function renderDayCard(slot,i){
 function getBoodschappenGroepen(plan, extraItems){
   extraItems = extraItems || [];
   const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
-  const agg = {};
+  const agg = {}; // key = genormaliseerde naam (ongeacht eenheid), zodat hetzelfde item niet dubbel verschijnt
+
+  function voegToe(naam, hoeveelheid, eenheid, categorie, extraId){
+    const key = naam.trim().toLowerCase();
+    if(!agg[key]) agg[key] = {naam: naam.trim(), categorie, totaalPerEenheid:{}, teksten:[], extraIds:[]};
+    const num = parseFloat((hoeveelheid||'').toString().replace(',','.'));
+    if(!isNaN(num) && eenheid){
+      agg[key].totaalPerEenheid[eenheid] = (agg[key].totaalPerEenheid[eenheid]||0) + num;
+    }else if(hoeveelheid){
+      agg[key].teksten.push((hoeveelheid+' '+(eenheid||'')).trim());
+    }
+    if(extraId) agg[key].extraIds.push(extraId);
+  }
+
   gekozen.forEach(s=>{
     const g = gerechten.find(x=>x.id===s.gerechtId);
     if(!g) return;
     g.ingredienten.forEach(ing=>{
-      const k = (ing.naam.trim().toLowerCase())+'|'+(ing.eenheid||'').trim().toLowerCase();
-      if(!agg[k]) agg[k] = {naam:ing.naam, eenheid:ing.eenheid, totaal:0, teksten:[], categorie: ing.categorie || guessCategorie(ing.naam)};
-      const num = parseFloat((ing.hoeveelheid||'').toString().replace(',','.'));
-      if(!isNaN(num)) agg[k].totaal += num;
-      else agg[k].teksten.push(ing.hoeveelheid);
+      voegToe(ing.naam, ing.hoeveelheid, ing.eenheid, ing.categorie || guessCategorie(ing.naam));
     });
   });
-  const items = Object.entries(agg);
+  extraItems.forEach(item=>{
+    voegToe(item.naam, '', '', item.categorie || guessCategorie(item.naam), item.id);
+  });
 
-  const rows = [
-    ...items.map(([k,v])=>({
-      key:k, naam:v.naam, categorie:v.categorie, isExtra:false,
-      rechts: v.totaal>0 ? (v.totaal+' '+(v.eenheid||'')).trim() : (v.teksten.join(', ')||'')
-    })),
-    ...extraItems.map(item=>({
-      key:'extra:'+item.id, naam:item.naam, categorie: item.categorie || guessCategorie(item.naam),
-      isExtra:true, id:item.id
-    }))
-  ];
+  const rows = Object.entries(agg).map(([key, v])=>{
+    const hoevTeksten = Object.entries(v.totaalPerEenheid).map(([eenh,tot])=>`${tot} ${eenh}`.trim());
+    const rechts = [...hoevTeksten, ...v.teksten].join(', ');
+    return {
+      key: 'item:'+key,
+      naam: v.naam,
+      categorie: v.categorie,
+      rechts,
+      isExtra: v.extraIds.length>0,
+      extraIds: v.extraIds
+    };
+  });
 
   const groepen = {};
   rows.forEach(r=>{ (groepen[r.categorie] = groepen[r.categorie] || []).push(r); });
@@ -832,9 +845,10 @@ function renderReceipt(plan, checked, extraItems){
     .map(cat => {
       const rijenHtml = groepen[cat].map(r=>{
         const isChecked = checked[r.key];
-        const rechts = r.isExtra
-          ? `<button class="del-extra" data-del-extra="${r.id}">✕</button>`
-          : (r.rechts || '');
+        const rechts = [
+          r.rechts || '',
+          r.isExtra ? `<button class="del-extra" data-del-extra="${r.extraIds.join(',')}">✕</button>` : ''
+        ].filter(Boolean).join(' ');
         return `<div class="receipt-item ${isChecked?'checked':''}" data-key="${r.key}">
           <span class="naam">${isChecked?'✓ ':'• '}${r.naam}</span>
           <span>${rechts}</span>
@@ -921,7 +935,7 @@ function openWinkelmodus(){
           return `<div class="winkel-item ${isChecked?'checked':''}" data-key="${r.key}">
             <div class="bolletje">${isChecked?'✓':''}</div>
             <span class="naam">${r.naam}</span>
-            ${!r.isExtra && r.rechts ? `<span class="hoev">${r.rechts}</span>` : ''}
+            ${r.rechts ? `<span class="hoev">${r.rechts}</span>` : ''}
           </div>`;
         }).join('')}
       `).join('');
