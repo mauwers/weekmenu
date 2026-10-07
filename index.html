@@ -265,20 +265,12 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import { firebaseConfig, PERSONEN } from "./config.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDVpTQ7j6_TrbHkk3neeb2JOMMeK_64Il0",
-  authDomain: "gezin-weekmenu.firebaseapp.com",
-  projectId: "gezin-weekmenu",
-  storageBucket: "gezin-weekmenu.firebasestorage.app",
-  messagingSenderId: "719548122711",
-  appId: "1:719548122711:web:ec529f6a463f48051dc512"
-};
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
 const DAGEN = ["Zaterdag","Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag"];
-const PERSONEN = ["Marjan","Boris","Amelie","Paulien","Juliette","Allemaal"];
 let gerechten = [];        // {id, naam, ingredienten:[{naam,hoeveelheid,eenheid}]}
 let planningCache = {};    // weekKey -> { slots:[...x7], checked:{...} }
 let currentMonday = getWeekStart(new Date()); // ondanks de naam: start van de week = zaterdag (winkeldag)
