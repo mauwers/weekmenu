@@ -2,32 +2,37 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Weekmenu</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#26362A">
+<meta name="theme-color" content="#F4F7F2">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Weekmenu">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#26362A;
-    --bg-card:#2F4234;
-    --bg-card-hover:#374E3D;
-    --paper:#F2ECDD;
-    --paper-shadow:#DCD3B8;
-    --ink:#F2ECDD;
-    --ink-soft:#AFC0A9;
-    --ink-faint:#7E9078;
-    --mustard:#E7A93F;
-    --tomato:#C1432A;
-    --tomato-dark:#9C331F;
-    --line: rgba(242,236,221,0.14);
-    --radius: 14px;
+    --bg:#F4F7F2;
+    --bg-card:#FFFFFF;
+    --bg-card-hover:#EEF4EC;
+    --paper:#FFFDF6;
+    --paper-shadow:#E8E2CF;
+    --ink:#1F2B24;
+    --ink-soft:#56665B;
+    --ink-faint:#8A978E;
+    --accent:#2E9D5E;
+    --accent-dark:#227A48;
+    --accent-soft:#E2F3E8;
+    --mustard:#F2B441;
+    --tomato:#E0563B;
+    --tomato-dark:#C2432A;
+    --line: rgba(31,43,36,0.10);
+    --shadow: 0 1px 2px rgba(31,43,36,0.06), 0 4px 14px rgba(31,43,36,0.06);
+    --radius: 16px;
+    --tabbar-h: 64px;
   }
   *{box-sizing:border-box;}
   body{
@@ -37,18 +42,63 @@
     font-family:'Work Sans', sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .app{max-width:1100px;margin:0 auto;padding:28px 18px 80px;}
+  .app{max-width:1100px;margin:0 auto;padding:0 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px);}
 
-  /* header */
-  .chalk-header{text-align:center;margin-bottom:22px;}
-  .chalk-header h1{
-    font-family:'Baloo 2', sans-serif;
-    font-weight:800;
-    font-size:2.3rem;
-    margin:0 0 4px;
-    letter-spacing:0.5px;
+  /* app-balk bovenaan */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(244,247,242,0.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    margin:0 -16px 16px; padding:calc(env(safe-area-inset-top) + 14px) 16px 10px;
+    border-bottom:1px solid var(--line);
   }
-  .chalk-header .sub{color:var(--ink-soft); font-size:0.92rem;}
+  .topbar h1{
+    font-family:'Baloo 2', sans-serif; font-weight:800; font-size:1.5rem;
+    margin:0; line-height:1.2; text-align:center;
+  }
+  .topbar .weeknav{margin:6px 0 0;}
+
+  /* tabbalk onderaan */
+  .tabbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    display:flex; justify-content:center;
+    background:rgba(255,255,255,0.96); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .tabbar button{
+    flex:1; max-width:180px; height:var(--tabbar-h);
+    background:none; border:none; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    font-family:'Work Sans', sans-serif; font-size:0.72rem; font-weight:600; color:var(--ink-faint);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .tabbar button .ico{
+    font-size:1.25rem; line-height:1; padding:4px 16px; border-radius:999px;
+    transition:background .15s; filter:grayscale(1); opacity:.7;
+  }
+  .tabbar button.actief{color:var(--accent-dark);}
+  .tabbar button.actief .ico{background:var(--accent-soft); filter:none; opacity:1;}
+
+  /* gerechten-tab */
+  .gerechten-pagina{max-width:560px; margin:0 auto;}
+  .gerecht-rij{
+    display:flex; align-items:center; gap:12px;
+    background:var(--bg-card); border:1px solid var(--line); border-radius:12px;
+    box-shadow:var(--shadow); padding:12px 14px; margin-bottom:8px; cursor:pointer;
+  }
+  .gerecht-rij:hover{background:var(--bg-card-hover);}
+  .gerecht-rij .info{flex:1; min-width:0;}
+  .gerecht-rij .naam{font-weight:600; font-size:0.95rem;}
+  .gerecht-rij .meta{color:var(--ink-faint); font-size:0.75rem; margin-top:2px;}
+  .gerecht-rij .del-gerecht{
+    background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:1rem; padding:6px;
+  }
+  .gerecht-rij .del-gerecht:hover{color:var(--tomato);}
+  .zoek{
+    width:100%; background:var(--bg-card); border:1px solid var(--line); border-radius:12px;
+    padding:11px 14px; font-family:inherit; font-size:0.95rem; color:var(--ink); margin-bottom:12px;
+  }
+
 
   .weeknav{
     display:flex; align-items:center; justify-content:center; gap:14px;
@@ -78,6 +128,7 @@
   .day-card{
     background:var(--bg-card);
     border:1px solid var(--line);
+    box-shadow:var(--shadow);
     border-radius:var(--radius);
     padding:14px 12px;
     cursor:pointer;
@@ -98,8 +149,8 @@
   .day-card .chip{
     margin-top:10px;
     display:inline-flex; align-items:center; gap:6px;
-    background:rgba(231,169,63,0.15);
-    color:var(--mustard);
+    background:var(--accent-soft);
+    color:var(--accent-dark);
     border-radius:999px;
     padding:3px 10px;
     font-size:0.72rem;
@@ -109,8 +160,8 @@
   .day-card.training-dag{border-color:var(--tomato);}
   .day-card .chip-training{
     margin-top:0; margin-bottom:8px;
-    background:rgba(193,67,42,0.18);
-    color:var(--tomato);
+    background:rgba(224,86,59,0.12);
+    color:var(--tomato-dark);
   }
 
   /* buttons */
@@ -121,9 +172,9 @@
     transition:transform .1s, opacity .15s;
   }
   .btn:active{transform:scale(0.97);}
-  .btn-primary{background:var(--tomato); color:var(--paper);}
-  .btn-primary:hover{background:var(--tomato-dark);}
-  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--ink);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:var(--bg-card); border:1px solid var(--line); color:var(--ink); box-shadow:var(--shadow);}
   .btn-ghost:hover{background:var(--bg-card-hover);}
 
   /* receipt / shopping list */
@@ -134,7 +185,7 @@
     width:100%; max-width:420px;
     border-radius:6px;
     padding:26px 22px 30px;
-    box-shadow:0 14px 0 -6px var(--paper-shadow), 0 18px 30px rgba(0,0,0,0.35);
+    box-shadow:0 10px 0 -5px var(--paper-shadow), 0 10px 24px rgba(31,43,36,0.10);
     font-family:'IBM Plex Mono', monospace;
     position:relative;
   }
@@ -181,7 +232,7 @@
 
   /* modal */
   .overlay{
-    position:fixed; inset:0; background:rgba(15,20,15,0.6);
+    position:fixed; inset:0; background:rgba(20,30,24,0.45);
     display:flex; align-items:center; justify-content:center;
     padding:16px; z-index:50;
   }
@@ -189,6 +240,7 @@
     background:var(--bg-card); border-radius:var(--radius);
     width:100%; max-width:480px; max-height:88vh; overflow-y:auto;
     padding:22px; border:1px solid var(--line);
+    box-shadow:0 20px 50px rgba(31,43,36,0.25);
   }
   .modal h3{font-family:'Baloo 2', sans-serif; margin-top:0;}
   .modal label{display:block; font-size:0.8rem; color:var(--ink-soft); margin:14px 0 6px;}
@@ -201,7 +253,7 @@
     padding:6px 13px; border-radius:999px; border:1px solid var(--line);
     background:var(--bg); cursor:pointer; font-size:0.82rem; color:var(--ink-soft);
   }
-  .persoon-chip.actief{background:var(--mustard); color:#2A2A22; border-color:var(--mustard); font-weight:600;}
+  .persoon-chip.actief{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;}
   .gerecht-lijst{max-height:220px; overflow-y:auto; margin-top:6px;}
   .gerecht-optie{
     padding:10px 12px; border-radius:8px; cursor:pointer; font-size:0.9rem;
@@ -214,7 +266,7 @@
   .ing-row input{flex:1;}
   .ing-row input.hoev{flex:0 0 70px;}
   .ing-row .del-extra{flex:0 0 auto; align-self:center; font-size:1rem;}
-  .link-btn{background:none;border:none;color:var(--mustard); cursor:pointer; font-size:0.82rem; padding:4px 0;}
+  .link-btn{background:none;border:none;color:var(--accent-dark); font-weight:600; cursor:pointer; font-size:0.82rem; padding:4px 0;}
   .close-x{position:absolute; top:14px; right:16px; background:none; border:none; color:var(--ink-soft); font-size:1.3rem; cursor:pointer;}
   .modal{position:relative;}
   .tab-bar{display:flex; gap:8px; margin-bottom:16px;}
@@ -222,7 +274,7 @@
     flex:1; background:var(--bg); border:1px solid var(--line); color:var(--ink-soft);
     padding:8px; border-radius:8px; cursor:pointer; font-size:0.82rem; font-weight:600;
   }
-  .tab-bar button.actief{background:var(--tomato); color:var(--paper); border-color:var(--tomato);}
+  .tab-bar button.actief{background:var(--accent); color:#fff; border-color:var(--accent);}
   .loading{text-align:center; color:var(--ink-faint); padding:30px; font-size:0.85rem;}
   .footnote{text-align:center; color:var(--ink-faint); font-size:0.72rem; margin-top:26px;}
 
@@ -237,10 +289,10 @@
     display:flex; align-items:center; justify-content:space-between;
   }
   .winkel-header h2{font-family:'Baloo 2', sans-serif; margin:0; font-size:1.15rem;}
-  .winkel-terug{background:none; border:none; color:var(--tomato); font-weight:700; font-size:0.9rem; cursor:pointer; padding:6px 0;}
+  .winkel-terug{background:none; border:none; color:var(--accent-dark); font-weight:700; font-size:0.9rem; cursor:pointer; padding:6px 0;}
   .winkel-progress{font-family:'IBM Plex Mono', monospace; font-size:0.75rem; color:#6b6b58;}
   .winkel-body{padding:6px 20px 70px; max-width:520px; margin:0 auto;}
-  .winkel-cat{font-family:'Baloo 2', sans-serif; font-weight:700; font-size:0.95rem; color:var(--tomato); margin:24px 0 6px; letter-spacing:0.3px;}
+  .winkel-cat{font-family:'Baloo 2', sans-serif; font-weight:700; font-size:0.95rem; color:var(--accent-dark); margin:24px 0 6px; letter-spacing:0.3px;}
   .winkel-item{
     display:flex; align-items:center; gap:14px; padding:14px 2px;
     border-bottom:1px solid #ece5d0; font-size:1.05rem; cursor:pointer; user-select:none;
@@ -250,7 +302,7 @@
     flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     font-size:0.85rem; color:#fff;
   }
-  .winkel-item.checked .bolletje{background:var(--tomato); border-color:var(--tomato);}
+  .winkel-item.checked .bolletje{background:var(--accent); border-color:var(--accent);}
   .winkel-item.checked{opacity:0.45; text-decoration:line-through;}
   .winkel-item .naam{flex:1;}
   .winkel-item .hoev{font-family:'IBM Plex Mono', monospace; font-size:0.85rem; color:#6b6b58;}
@@ -625,47 +677,121 @@ async function saveWeek(monday){
 }
 
 // ---------- rendering ----------
+const TABS = [
+  {id:'menu',         icon:'🗓️', label:'Menu',         titel:'Wat eten we?'},
+  {id:'boodschappen', icon:'🛒', label:'Boodschappen', titel:'Boodschappen'},
+  {id:'gerechten',    icon:'📖', label:'Gerechten',    titel:'Gerechten'}
+];
+let actieveTab = 'menu';
+try{ actieveTab = localStorage.getItem('weekmenu-tab') || 'menu'; }catch(e){}
+if(!TABS.some(t=>t.id===actieveTab)) actieveTab = 'menu';
+
+function kiesTab(id){
+  actieveTab = id;
+  try{ localStorage.setItem('weekmenu-tab', id); }catch(e){}
+  render();
+  window.scrollTo(0,0);
+}
+
+function renderGerechtenTab(){
+  const gesorteerd = [...gerechten].sort((a,b)=>a.naam.localeCompare(b.naam,'nl'));
+  return `
+    <div class="gerechten-pagina">
+      <div class="row-actions" style="margin:0 0 14px;">
+        <button class="btn btn-primary" id="nieuwGerechtBtn">+ Nieuw gerecht</button>
+        <button class="btn btn-ghost" id="importReceptBtn">📋 Recept plakken</button>
+      </div>
+      ${gesorteerd.length > 6 ? '<input type="search" class="zoek" id="gerechtZoek" placeholder="🔍 Zoek een gerecht…">' : ''}
+      <div id="gerechtenLijst">
+        ${gesorteerd.map(g=>`
+          <div class="gerecht-rij" data-bewerk="${g.id}" data-naam="${g.naam.toLowerCase()}">
+            <div class="info">
+              <div class="naam">${g.naam}</div>
+              <div class="meta">${g.ingredienten.length} ingrediënt${g.ingredienten.length===1?'':'en'}${g.bereidingswijze ? ' · 📄 recept' : ''}</div>
+            </div>
+            <button class="del-gerecht" data-del-gerecht="${g.id}" title="Verwijderen">🗑️</button>
+          </div>
+        `).join('') || '<div class="receipt-empty" style="color:var(--ink-faint);">Nog geen gerechten.</div>'}
+      </div>
+    </div>
+  `;
+}
+
 function render(){
   const app = document.getElementById('app');
   const key = weekKey(currentMonday);
   const weekData = planningCache[key] || emptyWeek();
   const plan = weekData.slots;
   const sunday = addDays(currentMonday,6);
+  const tab = TABS.find(t=>t.id===actieveTab);
+
+  let inhoud;
+  if(actieveTab === 'menu'){
+    inhoud = `
+      <div class="days">
+        ${plan.map((slot,i)=>renderDayCard(slot,i)).join('')}
+      </div>
+      <div class="footnote">Tik op een dag om te kiezen wat je eet en wie er kookt.</div>
+    `;
+  }else if(actieveTab === 'boodschappen'){
+    inhoud = `
+      <div class="row-actions">
+        <button class="btn btn-primary" id="winkelBtn">🛒 Ga winkelen</button>
+        <button class="btn btn-ghost" id="vasteBtn">⭐ Vaste artikelen</button>
+      </div>
+      <div class="row-actions" style="margin-top:-22px;">
+        <button class="link-btn" id="pasBasisToeBtn">🔁 Vaste weekbasis toepassen op deze week</button>
+      </div>
+      <div class="receipt-wrap">
+        ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[])}
+      </div>
+      <div class="footnote">Alles wat je hier invult wordt live gedeeld met heel het gezin.</div>
+    `;
+  }else{
+    inhoud = renderGerechtenTab();
+  }
 
   app.innerHTML = `
-    <div class="chalk-header">
-      <h1>🍽️ Wat eten we deze week?</h1>
-      <div class="sub">Vul aan, kies wie kookt, en trek er automatisch een boodschappenlijst uit.</div>
-    </div>
+    <header class="topbar">
+      <h1>${tab.titel}</h1>
+      ${actieveTab !== 'gerechten' ? `
+        <div class="weeknav">
+          <button id="prevWeek" aria-label="Vorige week">‹</button>
+          <div class="label">${fmtDate(currentMonday)} – ${fmtDate(sunday)}</div>
+          <button id="nextWeek" aria-label="Volgende week">›</button>
+        </div>` : ''}
+    </header>
 
-    <div class="weeknav">
-      <button id="prevWeek">‹</button>
-      <div class="label">${fmtDate(currentMonday)} – ${fmtDate(sunday)}</div>
-      <button id="nextWeek">›</button>
-    </div>
+    ${inhoud}
 
-    <div class="days">
-      ${plan.map((slot,i)=>renderDayCard(slot,i)).join('')}
-    </div>
-
-    <div class="row-actions">
-      <button class="btn btn-ghost" id="beheerBtn">📖 Gerechten beheren</button>
-      <button class="btn btn-ghost" id="vasteBtn">⭐ Vaste artikelen</button>
-      <button class="btn btn-primary" id="winkelBtn">🛒 Ga winkelen</button>
-    </div>
-    <div class="row-actions" style="margin-top:-10px;">
-      <button class="link-btn" id="pasBasisToeBtn">🔁 Vaste weekbasis nu toepassen op deze week</button>
-    </div>
-
-    <div class="receipt-wrap">
-      ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[])}
-    </div>
-
-    <div class="footnote">Alles wat je hier invult wordt live gedeeld met heel het gezin.</div>
+    <nav class="tabbar">
+      ${TABS.map(t=>`
+        <button data-tab="${t.id}" class="${t.id===actieveTab?'actief':''}">
+          <span class="ico">${t.icon}</span>${t.label}
+        </button>`).join('')}
+    </nav>
   `;
 
-  document.getElementById('winkelBtn').onclick = ()=>openWinkelmodus();
-  document.getElementById('pasBasisToeBtn').onclick = async ()=>{
+  const bind = (id, fn)=>{ const el = document.getElementById(id); if(el) el.onclick = fn; };
+
+  document.querySelectorAll('.tabbar [data-tab]').forEach(btn=>{
+    btn.onclick = ()=>kiesTab(btn.dataset.tab);
+  });
+  bind('prevWeek', ()=>{
+    currentMonday = addDays(currentMonday,-7);
+    subscribeWeek(currentMonday);
+    render();
+  });
+  bind('nextWeek', ()=>{
+    currentMonday = addDays(currentMonday,7);
+    subscribeWeek(currentMonday);
+    render();
+  });
+
+  // Boodschappen-tab
+  bind('winkelBtn', ()=>openWinkelmodus());
+  bind('vasteBtn', ()=>openVasteArtikelen());
+  bind('pasBasisToeBtn', async ()=>{
     const wd = planningCache[key];
     wd.extraItems = wd.extraItems || [];
     const automatischeItems = (vasteArtikelen||[]).filter(a=>a.automatisch);
@@ -679,22 +805,47 @@ function render(){
     });
     await saveWeek(currentMonday);
     if(toegevoegd===0) alert('Alle vaste basis-items staan al op deze week.');
-  };
-  document.getElementById('prevWeek').onclick = ()=>{
-    currentMonday = addDays(currentMonday,-7);
-    subscribeWeek(currentMonday);
-    render();
-  };
-  document.getElementById('nextWeek').onclick = ()=>{
-    currentMonday = addDays(currentMonday,7);
-    subscribeWeek(currentMonday);
-    render();
-  };
-  document.getElementById('beheerBtn').onclick = ()=>openGerechtenBeheer();
-  document.getElementById('vasteBtn').onclick = ()=>openVasteArtikelen();
-  plan.forEach((slot,i)=>{
-    document.getElementById('day-'+i).onclick = ()=>openDagKeuze(i);
   });
+
+  // Gerechten-tab
+  bind('nieuwGerechtBtn', ()=>openNieuwGerecht(()=>render()));
+  bind('importReceptBtn', ()=>openImporteerRecept(()=>render()));
+  const zoek = document.getElementById('gerechtZoek');
+  if(zoek){
+    zoek.oninput = ()=>{
+      const q = zoek.value.trim().toLowerCase();
+      document.querySelectorAll('.gerecht-rij').forEach(rij=>{
+        rij.style.display = rij.dataset.naam.includes(q) ? '' : 'none';
+      });
+    };
+  }
+  document.querySelectorAll('.gerecht-rij[data-bewerk]').forEach(rij=>{
+    rij.onclick = ()=>{
+      const gerecht = gerechten.find(g=>g.id===rij.dataset.bewerk);
+      if(gerecht) openNieuwGerecht(()=>render(), gerecht);
+    };
+  });
+  document.querySelectorAll('[data-del-gerecht]').forEach(btn=>{
+    btn.onclick = async (e)=>{
+      e.stopPropagation();
+      const verwijderd = gerechten.find(g=>g.id===btn.dataset.delGerecht);
+      if(!verwijderd || !confirm(`"${verwijderd.naam}" verwijderen?`)) return;
+      gerechten = gerechten.filter(g=>g.id!==verwijderd.id);
+      try{
+        await saveGerechten();
+      }catch(err){
+        gerechten.push(verwijderd);
+      }
+      render();
+    };
+  });
+
+  // Menu-tab
+  if(actieveTab === 'menu'){
+    plan.forEach((slot,i)=>{
+      document.getElementById('day-'+i).onclick = ()=>openDagKeuze(i);
+    });
+  }
   document.querySelectorAll('[data-bekijk-recept]').forEach(btn=>{
     btn.onclick = (e)=>{
       e.stopPropagation();
@@ -1411,58 +1562,6 @@ function openVasteArtikelen(){
   document.querySelector('.close-x').onclick = ()=>document.body.removeChild(overlay);
 }
 
-function openGerechtenBeheer(){
-  const overlay = document.createElement('div');
-  overlay.className = 'overlay';
-  overlay.innerHTML = `
-    <div class="modal">
-      <button class="close-x">✕</button>
-      <h3>Gerechten beheren</h3>
-      <div id="beheerLijst"></div>
-      <button class="link-btn" id="nieuwBtn2">+ Nieuw gerecht toevoegen</button>
-      <button class="link-btn" id="importReceptBtn" style="display:block; margin-top:4px;">📋 Importeer recept (plak tekst)</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  function renderBeheer(){
-    document.getElementById('beheerLijst').innerHTML = gerechten.map(g=>`
-      <div class="gerecht-optie" style="border-bottom:1px solid var(--line);">
-        <span data-bewerk="${g.id}" style="cursor:pointer;">✏️ ${g.naam} <span class="ing-count">(${g.ingredienten.length} ingr.)</span></span>
-        <button class="link-btn" data-del="${g.id}" style="color:var(--tomato);">verwijder</button>
-      </div>
-    `).join('') || '<div class="receipt-empty" style="color:var(--ink-faint);">Nog geen gerechten.</div>';
-    document.querySelectorAll('[data-bewerk]').forEach(span=>{
-      span.onclick = ()=>{
-        const gerecht = gerechten.find(g=>g.id===span.dataset.bewerk);
-        document.body.removeChild(overlay);
-        openNieuwGerecht(()=>{ openGerechtenBeheer(); }, gerecht);
-      };
-    });
-    document.querySelectorAll('[data-del]').forEach(btn=>{
-      btn.onclick = async ()=>{
-        const verwijderd = gerechten.find(g=>g.id===btn.dataset.del);
-        gerechten = gerechten.filter(g=>g.id!==btn.dataset.del);
-        try{
-          await saveGerechten();
-        }catch(e){
-          gerechten.push(verwijderd);
-        }
-        renderBeheer();
-      };
-    });
-  }
-  renderBeheer();
-  document.getElementById('nieuwBtn2').onclick = ()=>{
-    document.body.removeChild(overlay);
-    openNieuwGerecht(()=>{ openGerechtenBeheer(); });
-  };
-  document.getElementById('importReceptBtn').onclick = ()=>{
-    document.body.removeChild(overlay);
-    openImporteerRecept(()=>{ openGerechtenBeheer(); });
-  };
-  document.querySelector('.close-x').onclick = ()=>document.body.removeChild(overlay);
-}
 
 function openImporteerRecept(onKlaar){
   const overlay = document.createElement('div');
