@@ -1,7 +1,8 @@
-const CACHE_NAME = 'weekmenu-v1';
+const CACHE_NAME = 'weekmenu-v2';
 const OFFLINE_ASSETS = [
   './',
   './index.html',
+  './config.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'

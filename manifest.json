@@ -4,8 +4,8 @@
   "description": "Weekmenu en boodschappenlijst voor het gezin",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#26362A",
-  "theme_color": "#26362A",
+  "background_color": "#F4F7F2",
+  "theme_color": "#F4F7F2",
   "orientation": "portrait",
   "icons": [
     {
