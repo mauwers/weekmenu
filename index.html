@@ -99,6 +99,19 @@
     padding:11px 14px; font-family:inherit; font-size:0.95rem; color:var(--ink); margin-bottom:12px;
   }
 
+  /* extra gerechten (bv. appetizers voor bezoek) bij de boodschappen */
+  .extra-gerechten{max-width:560px; margin:0 auto 18px;}
+  .extra-gerechten h3{font-size:0.95rem; margin:0 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .extra-gerechten .gerecht-rij{cursor:default;}
+  .extra-gerechten .del-gerecht{background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:1rem; padding:6px;}
+  .extra-gerechten .del-gerecht:hover{color:var(--tomato);}
+  .extra-gerechten .leeg{color:var(--ink-faint); font-size:0.82rem; margin-bottom:6px;}
+  .kies-rij{display:flex; align-items:center; gap:12px;}
+  .kies-rij .vink{width:24px; height:24px; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.85rem; color:#fff; flex-shrink:0;}
+  .kies-rij.gekozen{background:var(--accent-soft);}
+  .kies-rij.gekozen .vink{background:var(--accent); border-color:var(--accent);}
+  .kies-lijst{max-height:50vh; overflow-y:auto; margin-top:4px;}
+
 
   .weeknav{
     display:flex; align-items:center; justify-content:center; gap:14px;
@@ -383,7 +396,7 @@ function weekKey(monday){ return toLocalISODate(monday); }
 function fmtDate(d){ return d.toLocaleDateString('nl-BE',{day:'numeric',month:'short'}); }
 function addDays(d,n){ const nd=new Date(d); nd.setDate(nd.getDate()+n); return nd; }
 function uid(){ return Math.random().toString(36).slice(2,9); }
-function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null, type:'thuis', notitie:''})), checked:{}, extraItems:[]}; }
+function emptyWeek(){ return {slots: DAGEN.map(()=>({gerechtId:null, persoon:null, type:'thuis', notitie:''})), checked:{}, extraItems:[], extraGerechten:[]}; }
 const TYPE_INFO = {
   thuis:       {label:'Thuis gekookt',   icon:'🍳'},
   afhalen:     {label:'Afhalen',         icon:'🥡'},
@@ -663,6 +676,7 @@ function subscribeWeek(monday){
       while(data.slots.length<7) data.slots.push({gerechtId:null, persoon:null, type:'thuis', notitie:''});
       data.checked = data.checked || {};
       data.extraItems = data.extraItems || [];
+      data.extraGerechten = data.extraGerechten || [];
       planningCache[key] = data;
     }else{
       // Nieuwe/nog niet bestaande week: automatisch de vaste "🔁"-items alvast toevoegen
@@ -778,8 +792,9 @@ function render(){
       <div class="row-actions" style="margin-top:-22px;">
         <button class="link-btn" id="pasBasisToeBtn">🔁 Vaste weekbasis toepassen op deze week</button>
       </div>
+      ${renderExtraGerechten(weekData.extraGerechten||[])}
       <div class="receipt-wrap">
-        ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[])}
+        ${renderReceipt(plan, weekData.checked||{}, weekData.extraItems||[], weekData.extraGerechten||[])}
       </div>
       <div class="footnote">Alles wat je hier invult wordt live gedeeld met heel het gezin.</div>
     `;
@@ -841,6 +856,17 @@ function render(){
     });
     await saveWeek(currentMonday);
     if(toegevoegd===0) alert('Alle vaste basis-items staan al op deze week.');
+  });
+
+  // Extra gerechten (bv. appetizers voor bezoek)
+  bind('extraGerechtBtn', ()=>openKiesExtraGerechten());
+  document.querySelectorAll('[data-del-extra-gerecht]').forEach(btn=>{
+    btn.onclick = async (e)=>{
+      e.stopPropagation();
+      const wd = planningCache[key];
+      wd.extraGerechten = (wd.extraGerechten||[]).filter(id=>id!==btn.dataset.delExtraGerecht);
+      await saveWeek(currentMonday);
+    };
   });
 
   // Gerechten-tab
@@ -936,6 +962,88 @@ function render(){
   }
 }
 
+// ---------- Extra gerechten bij de boodschappen (bv. appetizers voor bezoek) ----------
+function renderExtraGerechten(ids){
+  const esc = (t)=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const rijen = ids.map(id=>gerechten.find(g=>g.id===id)).filter(Boolean).map(g=>`
+    <div class="gerecht-rij">
+      <div class="info">
+        <div class="naam">${esc(g.naam)}</div>
+        <button class="link-btn" data-bekijk-recept="${g.id}" style="padding:2px 0; font-size:0.8rem;">📄 Bekijk recept</button>
+      </div>
+      <button class="del-gerecht" data-del-extra-gerecht="${g.id}" title="Weghalen (met ingrediënten)">✕</button>
+    </div>
+  `).join('');
+  return `
+    <div class="extra-gerechten">
+      <h3>🍽️ Extra gerechten
+        <button class="btn btn-ghost" id="extraGerechtBtn" style="padding:6px 12px; font-size:0.82rem;">+ Gerecht kiezen</button>
+      </h3>
+      ${rijen || '<div class="leeg">Nog geen extra gerechten. Handig voor bezoek of een feestje: de ingrediënten komen vanzelf op de lijst.</div>'}
+    </div>
+  `;
+}
+
+function openKiesExtraGerechten(){
+  const esc = (t)=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const key = weekKey(currentMonday);
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  document.body.appendChild(overlay);
+  const sluit = ()=>{ if(overlay.parentNode) document.body.removeChild(overlay); };
+
+  function tekenLijst(zoekTekst){
+    const wd = planningCache[key] || emptyWeek();
+    const gekozen = wd.extraGerechten || [];
+    const q = (zoekTekst||'').trim().toLowerCase();
+    const lijst = [...gerechten]
+      .sort((a,b)=>a.naam.localeCompare(b.naam,'nl'))
+      .filter(g=>!q || g.naam.toLowerCase().includes(q));
+    overlay.querySelector('.kies-lijst').innerHTML = lijst.map(g=>{
+      const aan = gekozen.includes(g.id);
+      return `<div class="gerecht-rij kies-rij ${aan?'gekozen':''}" data-kies="${g.id}">
+        <div class="vink">${aan?'✓':''}</div>
+        <div class="info">
+          <div class="naam">${esc(g.naam)}</div>
+          <div class="meta">${g.ingredienten.length} ingrediënt${g.ingredienten.length===1?'':'en'}</div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="receipt-empty" style="color:var(--ink-faint);">Geen gerechten gevonden.</div>';
+    overlay.querySelectorAll('[data-kies]').forEach(rij=>{
+      rij.onclick = async ()=>{
+        const w = planningCache[key] || (planningCache[key] = emptyWeek());
+        w.extraGerechten = w.extraGerechten || [];
+        const id = rij.dataset.kies;
+        w.extraGerechten = w.extraGerechten.includes(id)
+          ? w.extraGerechten.filter(x=>x!==id)
+          : [...w.extraGerechten, id];
+        tekenLijst(overlay.querySelector('#kiesZoek').value); // direct zichtbaar, niet wachten op Firestore
+        await saveWeek(currentMonday);
+      };
+    });
+  }
+
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x">✕</button>
+      <h3>🍽️ Extra gerechten kiezen</h3>
+      <div class="receipt-empty" style="color:var(--ink-soft); padding:0 0 10px; text-align:left;">
+        Tik op de gerechten die je extra wil maken. Hun ingrediënten komen op de boodschappenlijst van deze week.
+      </div>
+      <input type="search" class="zoek" id="kiesZoek" placeholder="🔍 Zoek een gerecht…">
+      <div class="kies-lijst"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="kiesKlaarBtn">Klaar</button>
+      </div>
+    </div>
+  `;
+  overlay.onclick = (e)=>{ if(e.target===overlay) sluit(); };
+  overlay.querySelector('.close-x').onclick = sluit;
+  overlay.querySelector('#kiesKlaarBtn').onclick = sluit;
+  overlay.querySelector('#kiesZoek').oninput = (e)=>tekenLijst(e.target.value);
+  tekenLijst('');
+}
+
 function renderDayCard(slot,i){
   const dag = DAGEN[i];
   const dagDatumObj = addDays(currentMonday,i);
@@ -982,9 +1090,12 @@ function matchSleutel(naam){
   return n.replace(/\s+/g,' ').trim();
 }
 
-function getBoodschappenGroepen(plan, extraItems){
+function getBoodschappenGroepen(plan, extraItems, extraGerechten){
   extraItems = extraItems || [];
+  extraGerechten = extraGerechten || [];
   const gekozen = plan.filter(s=>(s.type||'thuis')==='thuis' && s.gerechtId);
+  // extra gerechten (bv. appetizers voor bezoek) tellen mee alsof ze op een dag gekozen zijn
+  extraGerechten.forEach(id=>{ gekozen.push({type:'thuis', gerechtId:id, extra:true}); });
   const agg = {}; // key = herkenningssleutel (ongeacht eenheid/merk), zodat hetzelfde item niet dubbel verschijnt
 
   function voegToe(naam, hoeveelheid, eenheid, categorie, extraId){
@@ -1027,11 +1138,11 @@ function getBoodschappenGroepen(plan, extraItems){
   rows.forEach(r=>{ (groepen[r.categorie] = groepen[r.categorie] || []).push(r); });
   Object.values(groepen).forEach(list => list.sort((a,b)=>a.naam.localeCompare(b.naam)));
 
-  return {groepen, totaalAantal: rows.length, gekozenAantal: gekozen.length};
+  return {groepen, totaalAantal: rows.length, gekozenAantal: gekozen.filter(s=>!s.extra).length};
 }
 
-function renderReceipt(plan, checked, extraItems){
-  const {groepen, totaalAantal, gekozenAantal} = getBoodschappenGroepen(plan, extraItems);
+function renderReceipt(plan, checked, extraItems, extraGerechten){
+  const {groepen, totaalAantal, gekozenAantal} = getBoodschappenGroepen(plan, extraItems, extraGerechten);
 
   const body = CATEGORIEEN
     .filter(cat => groepen[cat] && groepen[cat].length)
@@ -1124,7 +1235,7 @@ function openWinkelmodus(){
     const key = weekKey(currentMonday);
     const wd = planningCache[key] || emptyWeek();
     const checked = wd.checked || {};
-    const {groepen, totaalAantal} = getBoodschappenGroepen(wd.slots, wd.extraItems||[]);
+    const {groepen, totaalAantal} = getBoodschappenGroepen(wd.slots, wd.extraItems||[], wd.extraGerechten||[]);
     const afgevinkt = Object.values(checked).filter(Boolean).length;
 
     if(totaalAantal===0){
